@@ -5,10 +5,19 @@ pretend to be the bedrock engine for oreUI's sake
 (C) Luminoso 2022 / MIT Licensed
 */
 
+
+const colorDebug = "#fc03d7";
+const colorInfo = "#03fcb1";
+const colorWarn = "#fc7703";
+const colorError = "#fc0339";
+
+function debugMessage(name, color, ...data) {
+  console.log(`[%cEngineWrapper%c] %c%s`, "color: #0398fc;", "color: initial;", `color: ${color};`, name, ...data);
+}
+
+
 if (navigator.userAgent.match("/cohtml/i")) {
-  console.warn(
-    "[EngineWrapper] OreUI Shim Injected, but the UI is being loaded in gameface!"
-  );
+  debugMessage("Loader", colorWarn, "OreUI Shim Injected, but the UI is being loaded in gameface!");
 }
 
 const USE_TRANSLATIONS = true; //requires a loc.lang at base of host dir
@@ -16,10 +25,304 @@ const USE_TRANSLATIONS = true; //requires a loc.lang at base of host dir
 let _ME_OnBindings = {};
 let _ME_Translations = {};
 
-const _ME_AchievementsRewardFacet = {};
-const _ME_AchievementsFacet = {
-  status: 1,
-  data: {
+
+
+//#region core
+
+class LocaleFacet {
+  locale = "en_US";
+  translate(id) {
+    if (USE_TRANSLATIONS) {
+      return _ME_Translations[id];
+    } else {
+      debugMessage("LocaleFacet", colorWarn, "USE_TRANSLATIONS not set, skipping translate", {id});
+      return id;
+    }
+  };
+  translateWithParameters(id, params) {
+    const translation = this.translate(id);
+    for (i = 1; i <= params.length; i++) {
+      translation = translation?.replaceAll("%" + i + "$s", params[i - 1])
+    };
+    return translation;
+  };
+  formatDate(date) {
+    return new Date(date).toLocaleDateString();
+  };
+};
+
+
+const _ME_Platforms = {
+  IOS: 0,
+  GOOGLE: 1,
+  AMAZON_HANDHELD: 2,
+  UWP: 3,
+  XBOX: 4,
+  NX_HANDHELD: 5,
+  PS4: 6,
+  GEARVR: 7,
+  WIN32: 8,
+  MACOS: 9,
+  AMAZON_TV: 10,
+  NX_TV: 11,
+  PS5: 12,
+};
+
+class DeviceInfoFacet {
+  #div;
+  constructor() {
+    let div = document.createElement("div");
+    div.style.width = "1cm";
+    div.style.height = "1cm";
+    div.style.position = "absolute";
+    div.style.top = "10000px";
+    document.body.appendChild(div);
+    this.#div = div;
+  }
+
+  get pixelsPerMillimeter() {
+      return this.#div.getBoundingClientRect().width / 10;
+  }
+
+  inputMethods = [_ME_InputMethods.GAMEPAD_INPUT_METHOD, _ME_InputMethods.TOUCH_INPUT_METHOD, _ME_InputMethods.MOUSE_INPUT_METHOD];
+  isLowMemoryDevice = false;
+  guiScaleBase = 4;
+  platform = _ME_Platforms.WIN32;
+  guiScaleModifier = 0;
+}
+
+
+class SafeZoneFacet {
+  safeAreaX = 1;
+  screenPositionX = 0;
+  safeAreaY = 1;
+  screenPositionY = 0;
+};
+
+
+class FeatureFlagsFacet {
+  flags = [
+    "facet",
+    "core.deviceInformation",
+    "core.input",
+    "core.locale",
+    "core.router",
+    "core.safeZone",
+    "core.screenReader",
+    "core.splitScreen",
+    "vanilla.achievements",
+    "vanilla.enableSeedTemplates",
+    "vanilla.enableBehaviorPacksTab",
+    "vanilla.enableResourcePacksTab",
+    "vanilla.enableResourcePacksRealmsPlusFeatureFlag",
+  ];
+};
+
+
+class SplitScreenFacet {
+  numActivePlayers = 1;
+  splitScreenDirection = 0;
+  splitScreenPosition = 0;
+};
+
+
+const _ME_InputMethods = {
+  GAMEPAD_INPUT_METHOD: 0,
+  TOUCH_INPUT_METHOD: 1,
+  MOUSE_INPUT_METHOD: 2,
+  MOTION_CONTROLLER_INPUT_METHOD: 3,
+};
+
+class InputFacet {
+  currentInputType = _ME_InputMethods.MOUSE_INPUT_METHOD;
+  swapABButtons = false;
+  acceptInputFromAllControllers = false;
+  gameControllerId = 0;
+  swapXYButtons = false;
+};
+
+
+class ScreenReaderFacet {
+  isChatTextToSpeechEnabled = false;
+  isIdle = false;
+  isUITextToSpeechEnabled = false;
+
+  read(text, interuptable, required, play_in_background) {
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+};
+
+
+class RouterFacetHistory {
+  constructor() {
+    window.addEventListener("hashchange", (ev) => {
+      const path = new URL(ev.newURL).hash.slice(1);
+      this.location.pathname = path;
+    
+      const handler = _ME_OnBindings[`facet:updated:core.router`];
+      if(handler) {
+        _ME_OnBindings[`facet:updated:core.router`](_ME_Facets["core.router"]);
+      }
+    });
+  }
+
+  location = {
+    hash: "",
+    search: "",
+    state: "",
+    pathname: window.pathname ?? "",
+  }
+  _ME_previousLocations = [];
+  length = 5;
+  action = "REPLACE";
+
+  replace(path) {
+    this._ME_previousLocations.push(this.location.pathname);
+    this.action = "REPLACE";
+    debugMessage("RouterFacet", colorInfo, "replacing path", path);
+    gotoRoute(path);
+  };
+
+  goBack() {
+    console.warn("goBack currently doesn't seem to work!");
+    debugMessage("RouterFacet", colorInfo, "Back");
+    const path = this._ME_previousLocations[this._ME_previousLocations.length - 2];
+    gotoRoute(path);
+    this._ME_previousLocations.pop();
+  };
+
+  push(path) {
+    this.action = "PUSH";
+    this._ME_previousLocations.push(this.location.pathname);
+    debugMessage("RouterFacet", colorInfo, "push path", path);
+    gotoRoute(path);
+  };
+}
+
+class RouterFacet {
+  #routes = [];
+  constructor() {
+    fetch("routes.json").then(resp => resp.json()).then(routes_json => {
+      this.#routes = routes_json.routes;
+    });
+  }
+
+  engineUITransitionTime = 800;
+  history = new RouterFacetHistory();
+
+  // not gameface
+  lookupRoute(path) {
+    let supportedRoute = null;
+    const route = this.#routes.find(route => {
+      supportedRoute = route.supportedRoutes.find(supportedRoute => {
+        const re = new RegExp(supportedRoute.regexp);
+        if(re.test(path)) {
+          return true;
+        }
+        return false;
+      });
+      if(supportedRoute) {
+        return true;
+      }
+      return false;
+    });
+    if(route && route.fileName != location.pathname) {
+      debugMessage("Router", colorInfo, "Navigating to", route.fileName);
+      location.pathname = route.fileName;
+      location.hash = supportedRoute.route;
+      return true;
+    }
+    return false;
+  }
+}
+function gotoRoute(path) {
+  const router = _ME_Facets["core.router"];
+  if(router.lookupRoute(path)) {
+    return;
+  }
+  location.hash = path;
+}
+
+
+class CustomScalingFacet {
+  scalingModeOverride = 0;
+  fixedGuiScaleModifier = 0;
+};
+
+
+class AnimationFacet {
+  screenAnimationEnabled = true;
+};
+
+
+class SoundFacet {
+  #sound_definitions = {};
+  constructor() {
+    fetch("sound_definitions.json")
+      .then((response) => response.json())
+      .then((sounddat) => {
+        this.#sound_definitions = sounddat;
+        debugMessage("Sound Definitions", colorInfo, "Loaded!");
+      });
+  }
+
+  play(id) {
+    debugMessage("SoundFacet", colorInfo, `Sound ${id} requested.`);
+    const soundData = this.#sound_definitions[id];
+    if(!soundData) {
+      debugMessage("SoundFacet", colorError, {id}, "Not Found");
+      return;
+    }
+    if(soundData.sounds.length == 0) {
+      debugMessage("SoundFacet", colorError, {id}, "No Sounds");
+      return;
+    }
+
+    const randomSound = soundData.sounds[Math.floor(Math.random() * soundData.sounds.length)].name;
+    const audio = new Audio(randomSound);
+    audio.play();
+    return audio;
+  };
+
+  isPlaying(audio) {
+    return !audio.ended;
+  };
+
+  fadeOut(audio) {
+    audio.pause();
+  };
+};
+
+
+class SocialFacet {};
+
+
+class UserFacet {};
+
+
+class performanceFacet {
+  #last = performance.now();
+
+  get frameTimeMs() {
+    const now = performance.now(); 
+    const t = now - this.#last;
+    this.#last = now;
+    return 1000 / t;
+  }
+  get gamefaceViewAdvanceTimeMs() {
+    return this.frameTimeMs;
+  }
+};
+
+//#endregion core
+
+
+
+//#region vanilla
+
+class AchievementsFacet {
+  status = 1;
+  data = {
     achievementsUnlocked: 1,
     maxGamerScore: 90,
     hoursPlayed: 100,
@@ -75,109 +378,38 @@ const _ME_AchievementsFacet = {
     ],
     currentGamerScore: 30,
     maxAchievements: 3,
-  },
+  };
+}
+
+class AchievementsRewardFacet {}
+
+
+class CreateNewWorldBetaFacet {
+  isBetaSupported = true;
+  openFeedbackPage() {
+    debugMessage("CNWBetaFacet", colorInfo, "openFeedbackPage()");
+  };
+  optOutOfBeta() {
+    debugMessage("CNWBetaFacet", colorInfo, "optOutOfBeta()");
+  };
 };
 
-const _ME_CreateNewWorldBetaFacet = {
-  isBetaSupported: true,
-  openFeedbackPage: function () {
-    console.log(`[EngineWrapper/CNWBetaFacet] openFeedbackPage()`);
-  },
-  optOutOfBeta: function () {
-    console.log(`[EngineWrapper/CNWBetaFacet] optOutOfBeta()`);
-  }
-};
-const _ME_UserAccountFacet = {
-  isTrialAccount: false,
-  isLoggedInWithMicrosoftAccount: true,
-  hasPremiumNetworkAccess: true,
-  showPremiumNetworkUpsellModal: function () {
-    console.log(`[EngineWrapper/UserAccountFacet] showPremiumNetworkUpsellModal()`);
-  },
-  showMicrosoftAccountLogInScreen: function () {
-    console.log(`[EngineWrapper/UserAccountFacet] showMicrosoftAccountLogInScreen()`);
-  },
-};
-const _ME_BuildSettingsFacet = {
-    isDevBuild: true,
-};
-
-const _ME_TelemetryFacet = {
-  fireEventButtonPressed: function (event) {
-    console.log(`[EngineWrapper/VanillaTelem] EventButtonPressed: ${event}`);
-  },
-};
-const _ME_ResourcePacksFacet = {
-  texturePacks: {
-    activeGlobal: [],
-    active: [],
-    available: [
-      {
-        image: "/hbui/assets/minecraft-texture-pack-31669.png",
-        name: "Minecraft",
-        description: "A test resource pack!",
-        id: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
-        contentId: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
-        isMarketplaceItem: false,
-      }
-    ],
-    realms: [],
-    unowned: [],
-  },
-  behaviorPacks: {
-    active: [],
-    available: [
-      {
-        image: "/hbui/assets/minecraft-texture-pack-31669.png",
-        name: "Minecraft",
-        description: "A test behavior pack!",
-        id: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
-        contentId: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
-        isMarketplaceItem: false,
-      }
-    ],
-  },
-  status: 0,
-  marketplacePackId: "1",
-  userOwnsAtLeastOnePack: true,
-  prompt: {
-    actions: [],
-    active: !1,
-    body: "",
-    handleAction: () => {
-      console.log("[EngineWrapper/RPFacet] prompt.handleAction()");
-    },
-    id: "prompt",
-    title: "",
-  },
-  activate: () => {
-    console.log("[EngineWrapper/RPFacet] activate()");
-  },
-  deactivate: () => {
-    console.log("[EngineWrapper/RPFacet] deactivate()");
-  },
-};
-const _ME_VanillaOptionsFacet = {
-  renderDistance: 5,
-  defaultRenderDistance: 10,
-};
-
-const _ME_CreateNewWorldFacet = {
-  isEditorWorld: false,
-  isUsingTemplate: false,
-  isLockedTemplate: false,
-  generalWarningState: 0,
-  showedAchievementWarning: false,
-  applyTemplate: function (a) {
-    console.log("[EngineWrapper/CNWFacet] applyTemplate.bind()");
-  },
-  createOnRealms: {
+class CreateNewWorldFacet {
+  isEditorWorld = false;
+  isUsingTemplate = false;
+  isLockedTemplate = false;
+  generalWarningState = 0;
+  showedAchievementWarning = false;
+  applyTemplate(a) {
+    debugMessage("CNWFacet", colorInfo, "applyTemplate.bind()");
+  };
+  createOnRealms = {
     call: function () {
-      console.log("[EngineWrapper/CNWFacet] createOnRealms.call()");
+      debugMessage("CNWFacet", colorInfo, "createOnRealms.call()");
     },
     error: null,
-  },
-  worldCreationData: {
+  };
+  worldCreationData = {
     general: {
       worldName: "Some World",
       difficulty: 0,
@@ -238,175 +470,73 @@ const _ME_CreateNewWorldFacet = {
       platformPlayerAccessEnabled: true,
       platformPlayerInviteAccessSupported: true,
     },
-  },
+  };
 };
 
-const _ME_LocaleFacet = {
-  locale: "en_US",
-  translate: function (id) {
-    if (USE_TRANSLATIONS) {
-      return _ME_Translations[id];
-    } else {
-      console.warn(
-        `[EngineWrapper/LocaleFacet] USE_TRANSLATIONS not set, skipping translate: ${id}`
-      );
-      return id;
+class VanillaOptionsFacet {
+  renderDistance = 5;
+  defaultRenderDistance = 10;
+};
+
+class SeedTemplatesFacet {
+  templates = [
+    {
+      seedValue: "0",
+      title: "The Nothing Seed",
+      image: "/hbui/assets/world-preview-default-d72bc.jpg",
     }
-  },
-  translateWithParameters: function (id, params) {
-    if (USE_TRANSLATIONS) {
-      let translation = _ME_Translations[id];
-      for (i = 1; i <= params.length; i++) {
-        translation = translation?.replaceAll("%" + i + "$s", params[i - 1])
-      };
-
-      return translation;
-    } else {
-      console.warn(
-        `[EngineWrapper/LocaleFacet] USE_TRANSLATIONS not set, skipping translate w/ param: ${id}`
-      );
-      return id;
-    }
-  },
-  formatDate: function (date) {
-    return new Date(date).toLocaleDateString();
-  },
+  ];
 };
 
-const _ME_SoundFacet = {
-  play: function (id) {
-    console.log(`[EngineWrapper/SoundFacet] Sound ${id} requested.`);
-    fetch("/hbui/sound_definitions.json")
-      .then((response) => response.json())
-      .then((sounddat) => {
-        if(sounddat[id] && sounddat[id].sounds.length != false) {
-          let randomSound = sounddat[id].sounds[Math.floor(Math.random() * sounddat[id].sounds.length)].name;
-          new Audio(randomSound).play();
-        }
-      });
-  },
+class SimulationDistanceOptionsFacet {
+  simulationDistanceOptions = [4, 6, 8, 10];
 };
 
-const _ME_AnimationFacet = {
-  screenAnimationEnabled: true,
-};
-
-const _ME_RouterFacet = {
-  engineUITransitionTime: 800,
-  history: {
-    location: {
-      hash: "",
-      search: "",
-      state: "",
-      pathname: "/create-new-world",
+class DebugSettingsFacet {
+  isBiomeOverrideActive = false;
+  flatNether = false;
+  dimension = 0;
+  allBiomes = [
+    {
+      id: "0",
+      label: "plains",
+      dimension: 0,
     },
-    _ME_previousLocations: [],
-    length: 5,
-    action: "REPLACE",
-    replace: function (path) {
-      this._ME_previousLocations.push(this.location.pathname);
-      this.action = "REPLACE";
-      console.log("[EngineWrapper/RouterFacet] replacing path to " + path);
-      this.location.pathname = path;
-      _ME_OnBindings[`facet:updated:core.router`](_ME_Facets["core.router"]);
+    {
+      id: "1",
+      label: "birch_forest",
+      dimension: 0,
     },
-    goBack: function () {
-      console.warn("goBack currently doesn't seem to work!");
-      console.log("[EngineWrapper/RouterFacet] goingBack.");
-      this.location.pathname =
-        this._ME_previousLocations[this._ME_previousLocations.length - 2];
-      _ME_OnBindings[`facet:updated:core.router`](_ME_Facets["core.router"]);
-      this._ME_previousLocations.pop();
+    {
+      id: "2",
+      label: "jungle",
+      dimension: 0,
     },
-    push: function (path) {
-      this.action = "PUSH";
-      this._ME_previousLocations.push(this.location.pathname);
-      console.log("[EngineWrapper/RouterFacet] pushing path to " + path);
-      this.location.pathname = path;
-      _ME_OnBindings[`facet:updated:core.router`](_ME_Facets["core.router"]);
+    {
+      id: "3",
+      label: "hell",
+      dimension: 1,
     },
-  },
+    {
+      id: "4",
+      label: "basalt_delta",
+      dimension: 1,
+    },
+    {
+      id: "5",
+      label: "warped_forest",
+      dimension: 1,
+    },
+  ];
+  spawnDimensionId = 0;
+  spawnBiomeId = 0;
+  biomeOverrideId = 0;
+  defaultSpawnBiome = 0;
 };
 
-const _ME_ScreenReaderFacet = {
-  isChatTextToSpeechEnabled: false,
-  isIdle: false,
-  isUITextToSpeechEnabled: false,
-};
 
-const _ME_InputMethods = {
-  GAMEPAD_INPUT_METHOD: 0,
-  TOUCH_INPUT_METHOD: 1,
-  MOUSE_INPUT_METHOD: 2,
-  MOTION_CONTROLLER_INPUT_METHOD: 3,
-};
-
-const _ME_InputFacet = {
-  currentInputType: _ME_InputMethods.MOUSE_INPUT_METHOD,
-  swapABButtons: false,
-  acceptInputFromAllControllers: false,
-  gameControllerId: 0,
-  swapXYButtons: false,
-};
-
-const _ME_SplitScreenFacet = {
-  numActivePlayers: 1,
-  splitScreenDirection: 0,
-  splitScreenPosition: 0,
-};
-
-const _ME_FeatureFlagsFacet = {
-  flags: [
-    "facet",
-    "core.deviceInformation",
-    "core.input",
-    "core.locale",
-    "core.router",
-    "core.safeZone",
-    "core.screenReader",
-    "core.splitScreen",
-    "vanilla.achievements",
-    "vanilla.enableSeedTemplates",
-    "vanilla.enableBehaviorPacksTab",
-    "vanilla.enableResourcePacksTab",
-    "vanilla.enableResourcePacksRealmsPlusFeatureFlag",
-  ],
-};
-
-const _ME_SafeZoneFacet = {
-  safeAreaX: 1,
-  screenPositionX: 0,
-  safeAreaY: 1,
-  screenPositionY: 0,
-};
-
-const _ME_Platforms = {
-  IOS: 0,
-  GOOGLE: 1,
-  AMAZON_HANDHELD: 2,
-  UWP: 3,
-  XBOX: 4,
-  NX_HANDHELD: 5,
-  PS4: 6,
-  GEARVR: 7,
-  WIN32: 8,
-  MACOS: 9,
-  AMAZON_TV: 10,
-  NX_TV: 11,
-  PS5: 12,
-};
-
-const _ME_DeviceInfoFacet = {
-  pixelsPerMillimeter: 3,
-  inputMethods: [_ME_InputMethods.GAMEPAD_INPUT_METHOD, _ME_InputMethods.TOUCH_INPUT_METHOD, _ME_InputMethods.MOUSE_INPUT_METHOD],
-  isLowMemoryDevice: false,
-  guiScaleBase: 4,
-  platform: _ME_Platforms.PS5,
-  guiScaleModifier: -2,
-};
-  
-const _ME_RealmsStoriesFacet = {
-  data: {
+class RealmsStoriesFacet {
+  data = {
     stories: [
       {
         id: 1,
@@ -448,21 +578,82 @@ const _ME_RealmsStoriesFacet = {
         recentSessions: [],
       },
     ],
-  },
+  };
 };
 
-const _ME_SeedTemplatesFacet = {
-  templates: [
-    {
-      seedValue: "0",
-      title: "The Nothing Seed",
-      image: "/hbui/assets/world-preview-default-d72bc.jpg",
-    }
-  ],
+class ResourcePacksFacet {
+  texturePacks = {
+    activeGlobal: [],
+    active: [],
+    available: [
+      {
+        image: "/hbui/assets/minecraft-texture-pack-31669.png",
+        name: "Minecraft",
+        description: "A test resource pack!",
+        id: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
+        contentId: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
+        isMarketplaceItem: false,
+      }
+    ],
+    realms: [],
+    unowned: [],
+  };
+  behaviorPacks = {
+    active: [],
+    available: [
+      {
+        image: "/hbui/assets/minecraft-texture-pack-31669.png",
+        name: "Minecraft",
+        description: "A test behavior pack!",
+        id: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
+        contentId: "7f4bt1a2-43dd-45b1-aa3f-0b3ca2ebd5c8",
+        isMarketplaceItem: false,
+      }
+    ],
+  };
+  status = 0;
+  marketplacePackId = "1";
+  userOwnsAtLeastOnePack = true;
+  prompt = {
+    actions: [],
+    active: !1,
+    body: "",
+    handleAction: () => {
+      debugMessage("RPFacet", colorInfo, "prompt.handleAction()");
+    },
+    id: "prompt",
+    title: "",
+  };
+  activate() {
+    debugMessage("RPFacet", colorInfo, "activate()");
+  };
+  deactivate() {
+    debugMessage("RPFacet", colorInfo, "deactivate()");
+  };
 };
 
-const _ME_PlayerMessagingServiceFacet = {
-  data: {
+
+
+class UserAccountFacet {
+  isTrialAccount = false;
+  isLoggedInWithMicrosoftAccount = true;
+  hasPremiumNetworkAccess = true;
+  showPremiumNetworkUpsellModal() {
+    debugMessage("UserAccountFacet", colorInfo, "showPremiumNetworkUpsellModal()");
+  };
+  showMicrosoftAccountLogInScreen() {
+    debugMessage("UserAccountFacet", colorInfo, "showMicrosoftAccountLogInScreen()");
+  };
+};
+
+class TelemetryFacet {
+  fireEventButtonPressed(event) {
+    debugMessage("VanillaTelem", colorDebug, "EventButtonPressed", {event: event});
+  };
+};
+
+class PlayerMessagingServiceFacet {
+  data = {
     messages: [
       {
         id: "0",
@@ -563,79 +754,43 @@ const _ME_PlayerMessagingServiceFacet = {
         ],
       },
     ],
-  },
-  reportClick: function (a) {
+  };
+  reportClick(a) {
     console.log("[EngineWrapper/PlayerMessagingServiceFacet] reportClick.bind()");
-  },
-  reportDismiss: function (a) {
+  };
+  reportDismiss(a) {
     console.log("[EngineWrapper/PlayerMessagingServiceFacet] reportClick.bind()");
-  },
+  };
 };
 
-const _ME_SimulationDistanceOptionsFacet = {
-  simulationDistanceOptions: [4, 6, 8, 10],
-};
-
-const _ME_PlayerReportFacet = {
-  reportPlayer: function(whereReport, reason, message, xuid, uuid) {
+class PlayerReportFacet {
+  reportPlayer(whereReport, reason, message, xuid, uuid) {
     console.log("[EngineWrapper/PlayerReportFacet] reportPlayer()");
   }
 };
 
-const _ME_MarketplaceSuggestionsFacet = {
-  getMorePacks: {
+class PlayerBannedFacet {
+  openBannedInfoPage() {
+    console.log("[EngineWrapper/PlayerBannedFacet] openBannedInfoPage()");
+  };
+};
+
+class MarketplaceSuggestionsFacet {
+  getMorePacks = {
     title: "test",
     pageId: 0,
   }
 };
 
-const _ME_PlayerBannedFacet = {
-  openBannedInfoPage: function () {
-    console.log("[EngineWrapper/PlayerBannedFacet] openBannedInfoPage()");
-  },
+class BuildSettingsFacet {
+  isDevBuild = true;
 };
 
-const _ME_DebugSettingsFacet = {
-  isBiomeOverrideActive: false,
-  flatNether: false,
-  dimension: 0,
-  allBiomes: [
-    {
-      id: "0",
-      label: "plains",
-      dimension: 0,
-    },
-    {
-      id: "1",
-      label: "birch_forest",
-      dimension: 0,
-    },
-    {
-      id: "2",
-      label: "jungle",
-      dimension: 0,
-    },
-    {
-      id: "3",
-      label: "hell",
-      dimension: 1,
-    },
-    {
-      id: "4",
-      label: "basalt_delta",
-      dimension: 1,
-    },
-    {
-      id: "5",
-      label: "warped_forest",
-      dimension: 1,
-    },
-  ],
-  spawnDimensionId: 0,
-  spawnBiomeId: 0,
-  biomeOverrideId: 0,
-  defaultSpawnBiome: 0,
-};
+
+
+
+
+
 
 const _ME_EditorFileFlags = {
   None: 0,
@@ -689,141 +844,165 @@ const _ME_EditorThemes = {
   Redstone: 2,
   HightContrast: 3,
 };
-const _ME_EditorFacet = {
-  editorTools: {
+
+
+class EditorFacet {
+  editorTools = {
     selectedTool: 0,
-  },
-  fileFlags: _ME_EditorFileFlags.New,
-  editFlags: _ME_EditorEditFlags.Settings,
-  windowFlags: _ME_EditorWindowFlags.ShowUI,
-  helpFlags: _ME_EditorHelpFlags.Documentation,
-  prototypeFlags: _ME_EditorPrototypeFlags.Restart,
-  actionFlags: _ME_EditorActionFlags.Players,
-  editorSettings: {
+  };
+  fileFlags = _ME_EditorFileFlags.New;
+  editFlags = _ME_EditorEditFlags.Settings;
+  windowFlags = _ME_EditorWindowFlags.ShowUI;
+  helpFlags = _ME_EditorHelpFlags.Documentation;
+  prototypeFlags = _ME_EditorPrototypeFlags.Restart;
+  actionFlags = _ME_EditorActionFlags.Players;
+  editorSettings = {
     theme: _ME_EditorThemes.Dark,
   }
 };
 
-const _ME_EditorInputFacet = {};
+class EditorInputFacet {};
 
-const _ME_SocialFacet = {};
-const _ME_UserFacet = {};
-
-const _ME_CustomScalingFacet = {
-  scalingModeOverride: 0,
-  fixedGuiScaleModifier: 0,
-};
+//#endregion vanilla
 
 let _ME_Facets = {
   // == Core Facets == //
-  "core.locale": _ME_LocaleFacet,
-  "core.deviceInformation": _ME_DeviceInfoFacet,
-  "core.safeZone": _ME_SafeZoneFacet,
-  "core.featureFlags": _ME_FeatureFlagsFacet,
-  "core.splitScreen": _ME_SplitScreenFacet,
-  "core.input": _ME_InputFacet,
-  "core.screenReader": _ME_ScreenReaderFacet,
-  "core.router": _ME_RouterFacet,
-  "core.customScaling": _ME_CustomScalingFacet,
-  "core.animation": _ME_AnimationFacet,
-  "core.sound": _ME_SoundFacet,
-  "core.social": _ME_SocialFacet,
-  "core.user": _ME_UserFacet,
+  "core.locale": new LocaleFacet(),
+  "core.deviceInformation": new DeviceInfoFacet(),
+  "core.safeZone": new SafeZoneFacet(),
+  "core.featureFlags": new FeatureFlagsFacet(),
+  "core.splitScreen": new SplitScreenFacet(),
+  "core.input": new InputFacet(),
+  "core.screenReader": new ScreenReaderFacet(),
+  "core.router": new RouterFacet(),
+  "core.customScaling": new CustomScalingFacet(),
+  "core.animation": new AnimationFacet(),
+  "core.sound": new SoundFacet(),
+  "core.social": new SocialFacet(),
+  "core.user": new UserFacet(),
+  "core.performanceFacet": new performanceFacet(),
   // == Vanilla Facets == //
-  "vanilla.achievements": _ME_AchievementsFacet,
-  "vanilla.achievementsReward": _ME_AchievementsRewardFacet,
-  "vanilla.createNewWorld": _ME_CreateNewWorldFacet,
-  "vanilla.telemetry": _ME_TelemetryFacet,
-  "vanilla.createNewWorldBeta": _ME_CreateNewWorldBetaFacet,
-  "vanilla.userAccount": _ME_UserAccountFacet,
-  "vanilla.buildSettings": _ME_BuildSettingsFacet,
-  "vanilla.debugSettings": _ME_DebugSettingsFacet,
-  "vanilla.resourcePacks": _ME_ResourcePacksFacet,
-  "vanilla.options": _ME_VanillaOptionsFacet,
-  "vanilla.simulationDistanceOptions": _ME_SimulationDistanceOptionsFacet,
-  "vanilla.seedTemplates": _ME_SeedTemplatesFacet,
-  "vanilla.realmsStories": _ME_RealmsStoriesFacet,
-  "vanilla.playermessagingservice": _ME_PlayerMessagingServiceFacet,
-  "vanilla.playerReport": _ME_PlayerReportFacet,
-  "vanilla.marketplaceSuggestions": _ME_MarketplaceSuggestionsFacet,
-  "vanilla.playerBanned": _ME_PlayerBannedFacet,
-  "vanilla.editor": _ME_EditorFacet,
-  "vanilla.editorInput": _ME_EditorInputFacet,
+  "vanilla.achievements": new AchievementsFacet(),
+  "vanilla.achievementsReward": new AchievementsRewardFacet(),
+  "vanilla.createNewWorld": new CreateNewWorldFacet(),
+  "vanilla.telemetry": new TelemetryFacet(),
+  "vanilla.createNewWorldBeta": new CreateNewWorldBetaFacet(),
+  "vanilla.userAccount": new UserAccountFacet(),
+  "vanilla.buildSettings": new BuildSettingsFacet(),
+  "vanilla.debugSettings": new DebugSettingsFacet(),
+  "vanilla.resourcePacks": new ResourcePacksFacet(),
+  "vanilla.options": new VanillaOptionsFacet(),
+  "vanilla.simulationDistanceOptions": new SimulationDistanceOptionsFacet(),
+  "vanilla.seedTemplates": new SeedTemplatesFacet(),
+  "vanilla.realmsStories": new RealmsStoriesFacet(),
+  "vanilla.playermessagingservice": new PlayerMessagingServiceFacet(),
+  "vanilla.playerReport": new PlayerReportFacet(),
+  "vanilla.marketplaceSuggestions": new MarketplaceSuggestionsFacet(),
+  "vanilla.playerBanned": new PlayerBannedFacet(),
+  "vanilla.editor": new EditorFacet(),
+  "vanilla.editorInput": new EditorInputFacet(),
 };
 
-const TriggerEvent = {
-  apply: function (unk, data) {
-    console.log(
-      `[EngineWrapper/TriggerEvent] apply called. | ${JSON.stringify(data)}`
-    );
-    if (data[0] == "facet:request") {
-      if (_ME_Facets.hasOwnProperty(data[1])) {
-        console.log(`[EngineWrapper] Sending Dummy Facet: ${data[1]}`);
-        _ME_OnBindings[`facet:updated:${data[1]}`](_ME_Facets[data[1]]);
-      } else {
-        console.error(`[EngineWrapper] MISSING FACET: ${data[1]}`);
-        _ME_OnBindings[`facet:error:${data[1]}`](_ME_Facets[data[1]]);
-      }
-    } else if (data[0] == "core:exception") {
-      console.error(
-        `[EngineWrapper] oreUI guest has reported exception: ${data[1]}`
-      );
-    } else {
-      console.warn(
-        `[EngineWrapper] OreUI triggered ${data[0]} but we don't handle it!`
-      );
+
+class TriggerEvent {
+  apply(unk, data) {
+    const eventType = data[0];
+    switch (eventType) {
+      case "facet:request":
+        const facet = data[1][0];
+        if (_ME_Facets.hasOwnProperty(facet)) {
+          debugMessage("TriggerEvent", colorInfo, "Sending Dummy Facet", facet);
+          const handler = _ME_OnBindings[`facet:updated:${facet}`];
+          if(handler) handler(_ME_Facets[facet]);
+        } else {
+          debugMessage("TriggerEvent", colorError, "MISSING FACET", facet);
+          const handler = _ME_OnBindings[`facet:error:${facet}`];
+          if(handler) handler(_ME_Facets[facet]);
+        }
+        break;
+    
+      case "core:exception":
+        const message = data[1];
+        debugMessage("TriggerEvent", colorError, "oreUI guest has reported exception", message);
+        break;
+
+      default:
+        debugMessage("TriggerEvent", colorWarn, `OreUI triggered ${eventType} but we don't handle it!`)
+        break;
     }
-  },
-};
-
-const engine = {
-  on: function (event, callback) {
-    console.log(`[EngineWrapper] engine.on called for ${event}`);
-  },
-  off: function (event, callback) {
-    console.log(`[EngineWrapper] engine.off called for ${event}`);
-  },
-  AddOrRemoveOnHandler: function (id, func, unk) {
-    console.log(
-      `[EngineWrapper] AddOrRemoveOnHandler w/ ID: ${JSON.stringify(
-        id
-      )}, Function: ${func}`
-    );
-    _ME_OnBindings[id] = func;
-  },
-  RemoveOnHandler: function (id, func, unk) {
-    console.log(`[EngineWrapper] RemoveOnHandler for ID ${id}. func: ${func}`);
-  },
-  AddOrRemoveOffHandler: function (id) {
-    console.log(
-      `[EngineWrapper] AddOrRemoveOffHandler w/ ID: ${JSON.stringify(id)}`
-    );
-    return true;
-  },
-  BindingsReady: function () {
-    console.log("[EngineWrapper] BindingsReady called");
-  },
-};
-
-if (USE_TRANSLATIONS) {
-  console.log(
-    "[EngineWrapper] Actual Translation Support was enabled (USE_TRANSLATIONS). Loading loc.lang file..."
-  );
-  fetch("/loc.lang")
-    .then((response) => response.text())
-    .then((locdat) => {
-      let lines = locdat.split("\n");
-      lines.forEach(function (item, ind) {
-        keyval = item.split("=");
-        _ME_Translations[keyval[0]] = keyval[1]?.replace("\r", ""); //oh windows you special snowflake
-      });
-    })
-    .then(() => {
-      engine._WindowLoaded = true;
-    });
-} else {
-  engine._WindowLoaded = true;
+  };
 }
 
-engine.TriggerEvent = TriggerEvent;
+async function loadLocalization() {
+  const locdat = await fetch("/loc.lang").then(resp => resp.text()).catch(e => {
+    debugMessage("Translations", colorError, {
+      "error": e,
+    });
+  });
+  const lines = locdat.split("\n");
+  lines.forEach(function (item, ind) {
+    keyval = item.split("=");
+    _ME_Translations[keyval[0]] = keyval[1]?.replace("\r", ""); //oh windows you special snowflake
+  });
+  return;
+}
+
+class Engine {
+  _WindowLoaded = false;
+
+  constructor() {
+    this.TriggerEvent = new TriggerEvent();
+
+    debugMessage("Translations", colorInfo, "Loading loc.lang file...");
+    
+    if (USE_TRANSLATIONS) {
+      loadLocalization().then(() => {
+        this._WindowLoaded = true;
+      })
+    } else {
+      engine._WindowLoaded = true;
+    }
+  }
+
+  on(event, callback) {
+    debugMessage("engine.on", colorInfo, {event: event});
+  }
+  off(event, callback) {
+    debugMessage("engine.off", colorInfo, {event: event});
+  }
+  AddOrRemoveOnHandler(id, func, unk) {
+    debugMessage("AddOrRemoveOnHandler", colorInfo, {
+      ID: id,
+      Function: func,
+    });
+    _ME_OnBindings[id] = func;
+  }
+  RemoveOnHandler(id, func, unk) {
+    debugMessage("RemoveOnHandler", colorInfo, {
+      ID: id,
+      Function: func,
+    });
+  }
+  AddOrRemoveOffHandler(id) {
+    debugMessage("AddOrRemoveOffHandler", colorInfo, {
+      ID: id,
+    });
+    return true;
+  }
+  BindingsReady() {
+    debugMessage("BindingsReady", colorDebug);
+  }
+}
+const engine = new Engine();
 window.engine = engine;
+
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  window.dispatchEvent(new HashChangeEvent("hashchange", {
+    newURL: location.href,
+  }));
+});
+
