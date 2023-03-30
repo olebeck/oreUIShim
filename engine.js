@@ -170,7 +170,7 @@ class RouterFacetHistory {
     hash: "",
     search: "",
     state: "",
-    pathname: window.pathname ?? "",
+    pathname: "",
   }
   _ME_previousLocations = [];
   length = 5;
@@ -199,11 +199,14 @@ class RouterFacetHistory {
   };
 }
 
+let routesLoaded_resolve;
+const routesLoaded = new Promise((r) => routesLoaded_resolve = r);
 class RouterFacet {
   #routes = [];
   constructor() {
     fetch("routes.json").then(resp => resp.json()).then(routes_json => {
       this.#routes = routes_json.routes;
+      routesLoaded_resolve();
     });
   }
 
@@ -936,13 +939,14 @@ class TriggerEvent {
   };
 }
 
+let localizationLoaded_resolve;
+const localizationLoaded = new Promise((r) => localizationLoaded_resolve = r);
 async function loadLocalization() {
   let version = await fetch("VERSION").then(resp => resp.text()).catch(e => {
     debugMessage("Translations", colorError, {
       "error": e,
     });
   });
-  
 
   if(version) {
     version = version.split("\n")[0]
@@ -950,6 +954,7 @@ async function loadLocalization() {
     version = "."+version;
   }
 
+  debugMessage("Translations", colorInfo, "Loading loc.lang file...");
   const locdat = await fetch(`/loc${version}.lang`).then(resp => resp.text()).catch(e => {
     debugMessage("Translations", colorError, {
       "error": e,
@@ -960,24 +965,17 @@ async function loadLocalization() {
     keyval = item.split("=");
     _ME_Translations[keyval[0]] = keyval[1]?.replace("\r", ""); //oh windows you special snowflake
   });
+
+  localizationLoaded_resolve();
   return;
 }
 
+const loadFinished = Promise.all([localizationLoaded, routesLoaded]);
+
 class Engine {
-  _WindowLoaded = false;
-
   constructor() {
-    this.TriggerEvent = new TriggerEvent();
-
-    debugMessage("Translations", colorInfo, "Loading loc.lang file...");
-    
-    if (USE_TRANSLATIONS) {
-      loadLocalization().then(() => {
-        this._WindowLoaded = true;
-      })
-    } else {
-      engine._WindowLoaded = true;
-    }
+    this.TriggerEvent = new TriggerEvent();    
+    loadLocalization();
   }
 
   on(event, callback) {
@@ -1013,12 +1011,27 @@ const engine = new Engine();
 window.engine = engine;
 
 
-
+// load the original script
+const me = document.currentScript;
+loadFinished.then(() => {
+  const oreuiSrc = me.getAttribute("oreui");
+  if(!oreuiSrc) {
+    debugMessage("Loader", colorError, "oreui not set on script tag");
+  }
+  const script = document.createElement("script");
+  script.src = oreuiSrc;
+  me.insertAdjacentElement("afterend", script);
+});
 
 
 document.addEventListener("DOMContentLoaded", () => {
+  let newUrl = location.href;
+  if(me.page && location.hash == "") {
+    newUrl = me.page;
+  }
+
   window.dispatchEvent(new HashChangeEvent("hashchange", {
-    newURL: location.href,
+    newURL: newUrl,
   }));
 });
 

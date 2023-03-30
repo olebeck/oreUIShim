@@ -32,11 +32,8 @@ To do this, replace:
 with
 
 ```js
-<script type="text/javascript" src="/engine.js"></script>
-<script type="text/javascript" src="/path/to/index-HASH.js"></script>
+<script type="text/javascript" src="/engine.js" oreui="/path/to/index-HASH.js"></script>
 ```
-
-**ensure that engine.js is loaded FIRST**
 
 Finally, start a webserver at the base directory (in our example, `oreui_dist`):
 
