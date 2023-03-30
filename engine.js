@@ -40,8 +40,8 @@ class LocaleFacet {
     }
   };
   translateWithParameters(id, params) {
-    const translation = this.translate(id);
-    for (i = 1; i <= params.length; i++) {
+    let translation = this.translate(id);
+    for (let i = 1; i <= params.length; i++) {
       translation = translation?.replaceAll("%" + i + "$s", params[i - 1])
     };
     return translation;
@@ -400,6 +400,7 @@ class CreateNewWorldFacet {
   isLockedTemplate = false;
   generalWarningState = 0;
   showedAchievementWarning = false;
+
   applyTemplate(a) {
     debugMessage("CNWFacet", colorInfo, "applyTemplate.bind()");
   };
@@ -409,6 +410,7 @@ class CreateNewWorldFacet {
     },
     error: null,
   };
+
   worldCreationData = {
     general: {
       worldName: "Some World",
@@ -433,6 +435,7 @@ class CreateNewWorldFacet {
     },
     cheats: {
       cheatsEnabled: false,
+      tickSpeed: 20,
     },
     betaFeatures: [
       {
@@ -934,7 +937,20 @@ class TriggerEvent {
 }
 
 async function loadLocalization() {
-  const locdat = await fetch("/loc.lang").then(resp => resp.text()).catch(e => {
+  let version = await fetch("VERSION").then(resp => resp.text()).catch(e => {
+    debugMessage("Translations", colorError, {
+      "error": e,
+    });
+  });
+  
+
+  if(version) {
+    version = version.split("\n")[0]
+    debugMessage("Ore UI", colorInfo, {"Version": version});
+    version = "."+version;
+  }
+
+  const locdat = await fetch(`/loc${version}.lang`).then(resp => resp.text()).catch(e => {
     debugMessage("Translations", colorError, {
       "error": e,
     });
@@ -1006,3 +1022,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
 });
 
+const style = document.createElement("style");
+style.innerHTML = `
+div {
+}
+`;
+document.body.appendChild(style);
