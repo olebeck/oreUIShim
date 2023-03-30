@@ -84,6 +84,14 @@ class DeviceInfoFacet {
       return this.#div.getBoundingClientRect().width / 10;
   }
 
+  get displayWidth() {
+    return window.innerWidth;
+  }
+
+  get displayHeight() {
+    return window.innerHeight;
+  }
+
   inputMethods = [_ME_InputMethods.GAMEPAD_INPUT_METHOD, _ME_InputMethods.TOUCH_INPUT_METHOD, _ME_InputMethods.MOUSE_INPUT_METHOD];
   isLowMemoryDevice = false;
   guiScaleBase = 4;
@@ -161,7 +169,7 @@ class RouterFacetHistory {
     
       const handler = _ME_OnBindings[`facet:updated:core.router`];
       if(handler) {
-        _ME_OnBindings[`facet:updated:core.router`](_ME_Facets["core.router"]);
+        handler(_ME_Facets["core.router"]);
       }
     });
   }
@@ -304,14 +312,26 @@ class UserFacet {};
 
 
 class performanceFacet {
+  frameTimeMs = 0;
   #last = performance.now();
 
-  get frameTimeMs() {
+  constructor() {
+    this.#frame();
+  }
+
+  #frame() {
     const now = performance.now(); 
     const t = now - this.#last;
     this.#last = now;
-    return 1000 / t;
+    this.frameTimeMs = t;
+
+    const handler = _ME_OnBindings[`facet:updated:core.performanceFacet`];
+    if(handler) {
+      handler(this);
+    }
+    requestAnimationFrame(() => {this.#frame()});
   }
+
   get gamefaceViewAdvanceTimeMs() {
     return this.frameTimeMs;
   }
@@ -789,6 +809,7 @@ class MarketplaceSuggestionsFacet {
 };
 
 class BuildSettingsFacet {
+  isEduBuild = true;
   isDevBuild = true;
 };
 
@@ -1038,6 +1059,7 @@ document.addEventListener("DOMContentLoaded", () => {
 const style = document.createElement("style");
 style.innerHTML = `
 div {
+  height: min-content;
 }
 `;
 document.body.appendChild(style);
