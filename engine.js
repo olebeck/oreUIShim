@@ -158,6 +158,10 @@ class ScreenReaderFacet {
   read(text, interuptable, required, play_in_background) {
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
+
+  clear() {
+    debugMessage("screenReaderFacet", colorDebug, "clear");
+  }
 };
 
 
@@ -892,6 +896,61 @@ class EditorInputFacet {};
 
 //#endregion vanilla
 
+
+//#region badger
+
+
+const loggingHandler = {
+  get(target, property) {
+    debugMessage(`DUMMY ${target.__name}`, colorDebug, property);
+    return target[property];
+  },
+};
+
+function dummyFacet(name) {
+  return new Proxy({__name: name}, loggingHandler)
+}
+
+class LoggingProxy {
+  constructor() {
+    return new Proxy(this, this.handler());
+  }
+  
+  handler() {
+    return {
+      get: (target, property) => {
+        const v = target[property];
+        if(!v) {
+          debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
+        }
+        return v;
+      }
+    }
+  }
+}
+
+
+class genericPreGameFacet extends LoggingProxy {
+}
+
+class genericCommonFacet extends LoggingProxy {
+  localPlayerPlatform = 0
+}
+
+class badgerCommonInputFacet extends LoggingProxy {
+
+}
+
+class settingsFacet extends LoggingProxy {
+
+}
+
+class settingsMethodsFacet extends LoggingProxy {
+
+}
+
+//#endregion badger
+
 let _ME_Facets = {
   // == Core Facets == //
   "core.locale": new LocaleFacet(),
@@ -928,6 +987,19 @@ let _ME_Facets = {
   "vanilla.playerBanned": new PlayerBannedFacet(),
   "vanilla.editor": new EditorFacet(),
   "vanilla.editorInput": new EditorInputFacet(),
+  // == Badger Facets == //
+  "badger.genericPreGame": dummyFacet("badger.genericPreGame"),
+  "badger.genericPreGameMethods": dummyFacet("badger.genericPreGameMethods"),
+  "badger.lobby": dummyFacet("badger.lobby"),
+  "badger.settings": new settingsFacet(),
+  "badger.settingsMethods": new settingsMethodsFacet(),
+  "badger.genericCommon": new genericCommonFacet(),
+  "badger.playerInfo": dummyFacet("badger.playerInfo"),
+  "badger.screenUtilMethods": dummyFacet("badger.screenUtilMethods"),
+  "badger.lobbyMethods": dummyFacet("badger.lobbyMethods"),
+  "badger.badgerCommonInput": new badgerCommonInputFacet(),
+  "badger.badgerCommonInputMethods": dummyFacet("badger.badgerCommonInputMethods"),
+  "badger.badgerInviteMethods": dummyFacet("badger.badgerInviteMethods")
 };
 
 

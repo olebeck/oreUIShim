@@ -26,13 +26,13 @@ Next, patch the **html files** that are in charge of the routes you want to use.
 To do this, replace:
 
 ```js
-<script type="text/javascript" src="/path/to/index-HASH.js"></script>
+<script type="text/javascript" src="/engine.js" oreui="/path/to/index-HASH.js"></script>
 ```
 
 with
 
 ```js
-<script type="text/javascript" src="/engine.js" oreui="/path/to/index-HASH.js"></script>
+<script type="text/javascript" src="/engine.js" oreui="/engine.js" oreui="/path/to/index-HASH.js"></script>
 ```
 
 Finally, start a webserver at the base directory (in our example, `oreui_dist`):
