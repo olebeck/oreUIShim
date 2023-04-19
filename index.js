@@ -20,10 +20,19 @@ class Router {
 
   constructor(iframe) {
     this.iframe = iframe;
+    this.iframe.contentDocument.write(`
+      <style>
+      div {
+        height: min-content;
+      }
+      </style>
+      <script src="/engine.js"></script>
+    `);
+    this.iframe.contentDocument.close();
     this.iframe.contentWindow._ME_Translations = _ME_Translations;
 
     window.addEventListener("hashchange", (ev) => {
-      const path = new URL(ev.newURL).hash.slice(1);
+      const path = new URL(ev.newURL).hash.split("?")[0].slice(1);
       if(path == "") {
         location.hash = "/badger/mainMenu";
         return;
@@ -35,7 +44,7 @@ class Router {
         console.log(ev.data);
         if(ev.data.RouterEvent) {
             debugMessage("RouterEvent", colorInfo, ev.data.RouterEvent);
-            this.lookupRoute(ev.data.RouterEvent);
+            window.location.hash = ev.data.RouterEvent;
         }
     });
 
@@ -46,6 +55,7 @@ class Router {
   }
 
   lookupRoute(path) {
+    console.log("lookupRoute", path)
     let supportedRoute = null;
     const route = this.routes.find(route => {
       supportedRoute = route.supportedRoutes.find(supportedRoute => {
@@ -61,33 +71,24 @@ class Router {
       return false;
     });
     if(route) {
-    const newHash = `${route.fileName}!${path}`;
-        if(newHash != window.location.hash) {
-            debugMessage("Router", colorInfo, "Navigating to", route.fileName);
-            this.loadIframe(route.fileName, path);
-            return true;
-        }
+      debugMessage("Router", colorInfo, "Navigating to", route.fileName);
+      this.loadIframe(route.fileName, path);
+      return true;
     }
     return false;
   }
 
   async loadIframe(filename, path) {
+    this.iframe.contentWindow.location.hash = path;
     const oldFilename = this.iframe.getAttribute("filename");
     if(oldFilename != filename) {
       debugMessage("Router", colorDebug, "Loading File", filename);
       let text = await fetch("./"+filename).then(resp => resp.text());
-      text = text.replace("<script ", `
-        <style>
-          div {
-            height: min-content;
-          }
-        </style>
-        <script src="/engine.js"></script>
-        <script 
-      `);
+      this.iframe.setAttribute("filename", filename);
       this.iframe.contentDocument.write(text);
-      this.iframe.contentWindow.location.hash = path;
+      this.iframe.contentDocument.close();
     }
+    
   }
 }
 

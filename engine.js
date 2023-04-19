@@ -74,7 +74,6 @@ class DeviceInfoFacet {
     div.style.height = "1cm";
     div.style.position = "absolute";
     div.style.top = "10000px";
-    document.body.appendChild(div);
     this.#div = div;
   }
 
@@ -164,14 +163,16 @@ class ScreenReaderFacet {
 
 
 class RouterFacetHistory {
-  constructor() {
+  constructor(router) {
+    // hash changes MUST be triggered by parent page changing the url
     window.addEventListener("hashchange", (ev) => {
-      const path = new URL(ev.newURL).hash.slice(1);
-      this.location.pathname = path;
-    
+      const pathname = new URL(ev.newURL).hash.slice(1);
+      console.log("pathname", pathname, this.location)
+      this.location.pathname = pathname;
+
       const handler = _ME_OnBindings[`facet:updated:core.router`];
       if(handler) {
-        handler(_ME_Facets["core.router"]);
+        handler(this.router);
       }
     });
   }
@@ -189,7 +190,7 @@ class RouterFacetHistory {
   replace(path) {
     this._ME_previousLocations.push(this.location.pathname);
     this.action = "REPLACE";
-    debugMessage("RouterFacet", colorInfo, "replacing path", path);
+    debugMessage("RouterFacet", colorInfo, "replacing path", path, this.location);
     gotoRoute(path);
   };
 
@@ -215,7 +216,9 @@ function gotoRoute(path) {
 
 class RouterFacet {
   engineUITransitionTime = 800;
-  history = new RouterFacetHistory();
+  constructor() {
+    this.history = dummyFacet(new RouterFacetHistory(this));
+  }
 }
 
 
@@ -862,31 +865,16 @@ class EditorInputFacet {};
 
 const loggingHandler = {
   get(target, property) {
-    debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
-    return target[property];
+    const v = target[property];
+    if(v === undefined) {
+      debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
+    }
+    return v;
   },
 };
 
 function dummyFacet(target) {
   return new Proxy(target, loggingHandler)
-}
-
-class LoggingProxy {
-  constructor() {
-    return new Proxy(this, this.handler());
-  }
-  
-  handler() {
-    return {
-      get: (target, property) => {
-        const v = target[property];
-        if(v === undefined) {
-          debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
-        }
-        return v;
-      }
-    }
-  }
 }
 
 
@@ -908,22 +896,27 @@ class genericCommonFacet {
 class genericCommonMethodsFacet {}
 
 class badgerCommonInputFacet {
-
+  remappingButtonData = []
 }
 
 class settingsFacet {
-
+  settingCategories = []
 }
 
 class settingsMethodsFacet {
-
+  setSettingCategory() {
+    console.log("setSettingCategory")
+  }
+  initRemappingEventHandler() {
+    console.log("initRemappingEventHandler")
+  }
 }
 
 class endCreditsFacet {
   creditsText = ["me lol"]
 }
 
-class badgerCommonInputMethodsFacet extends (LoggingProxy, Array) {
+class badgerCommonInputMethodsFacet {
   setUIIsGamepad(val) {}
   
   toPrimitive() {
@@ -1009,7 +1002,11 @@ class songbookFacet {}
 class uiEventFacet {}
 
 class badgerStartMenuFacet {}
-class badgerStartMenuMethodsFacet {}
+class badgerStartMenuMethodsFacet {
+  openSettings() {
+    gotoRoute("/badger/settings");
+  }
+}
 
 class lobbyFacet {}
 class lobbyMethodsFacet {}
@@ -1025,109 +1022,115 @@ class badgerInviteMethodsFacet {}
 
 //#endregion badger
 
-let _ME_Facets = {
+const _ME_Facets = {
   // == Core Facets == //
-  "core.locale": new LocaleFacet(),
-  "core.deviceInformation": new DeviceInfoFacet(),
-  "core.safeZone": new SafeZoneFacet(),
-  "core.featureFlags": new FeatureFlagsFacet(),
-  "core.splitScreen": new SplitScreenFacet(),
-  "core.input": new InputFacet(),
-  "core.screenReader": new ScreenReaderFacet(),
-  "core.router": new RouterFacet(),
-  "core.customScaling": new CustomScalingFacet(),
-  "core.animation": new AnimationFacet(),
-  "core.sound": new SoundFacet(),
-  "core.social": new SocialFacet(),
-  "core.user": new UserFacet(),
-  "core.performanceFacet": new performanceFacet(),
+  "core.locale": LocaleFacet,
+  "core.deviceInformation": DeviceInfoFacet,
+  "core.safeZone": SafeZoneFacet,
+  "core.featureFlags": FeatureFlagsFacet,
+  "core.splitScreen": SplitScreenFacet,
+  "core.input": InputFacet,
+  "core.screenReader": ScreenReaderFacet,
+  "core.router": RouterFacet,
+  "core.customScaling": CustomScalingFacet,
+  "core.animation": AnimationFacet,
+  "core.sound": SoundFacet,
+  "core.social": SocialFacet,
+  "core.user": UserFacet,
+  "core.performanceFacet": performanceFacet,
   // == Vanilla Facets == //
-  "vanilla.achievements": new AchievementsFacet(),
-  "vanilla.achievementsReward": new AchievementsRewardFacet(),
-  "vanilla.createNewWorld": new CreateNewWorldFacet(),
-  "vanilla.telemetry": new TelemetryFacet(),
-  "vanilla.createNewWorldBeta": new CreateNewWorldBetaFacet(),
-  "vanilla.userAccount": new UserAccountFacet(),
-  "vanilla.buildSettings": new BuildSettingsFacet(),
-  "vanilla.debugSettings": new DebugSettingsFacet(),
-  "vanilla.resourcePacks": new ResourcePacksFacet(),
-  "vanilla.options": new VanillaOptionsFacet(),
-  "vanilla.simulationDistanceOptions": new SimulationDistanceOptionsFacet(),
-  "vanilla.seedTemplates": new SeedTemplatesFacet(),
-  "vanilla.realmsStories": new RealmsStoriesFacet(),
-  "vanilla.playermessagingservice": new PlayerMessagingServiceFacet(),
-  "vanilla.playerReport": new PlayerReportFacet(),
-  "vanilla.marketplaceSuggestions": new MarketplaceSuggestionsFacet(),
-  "vanilla.playerBanned": new PlayerBannedFacet(),
-  "vanilla.editor": new EditorFacet(),
-  "vanilla.editorInput": new EditorInputFacet(),
+  "vanilla.achievements": AchievementsFacet,
+  "vanilla.achievementsReward": AchievementsRewardFacet,
+  "vanilla.createNewWorld": CreateNewWorldFacet,
+  "vanilla.telemetry": TelemetryFacet,
+  "vanilla.createNewWorldBeta": CreateNewWorldBetaFacet,
+  "vanilla.userAccount": UserAccountFacet,
+  "vanilla.buildSettings": BuildSettingsFacet,
+  "vanilla.debugSettings": DebugSettingsFacet,
+  "vanilla.resourcePacks": ResourcePacksFacet,
+  "vanilla.options": VanillaOptionsFacet,
+  "vanilla.simulationDistanceOptions": SimulationDistanceOptionsFacet,
+  "vanilla.seedTemplates": SeedTemplatesFacet,
+  "vanilla.realmsStories": RealmsStoriesFacet,
+  "vanilla.playermessagingservice": PlayerMessagingServiceFacet,
+  "vanilla.playerReport": PlayerReportFacet,
+  "vanilla.marketplaceSuggestions": MarketplaceSuggestionsFacet,
+  "vanilla.playerBanned": PlayerBannedFacet,
+  "vanilla.editor": EditorFacet,
+  "vanilla.editorInput": EditorInputFacet,
   // == Badger Facets == //
-  "badger.genericPreGame": new genericPreGameFacet(),
-  "badger.genericPreGameMethods": new genericPreGameMethods(),
+  "badger.genericPreGame": genericPreGameFacet,
+  "badger.genericPreGameMethods": genericPreGameMethods,
 
-  "badger.genericInGame": new genericInGameFacet(),
-  "badger.genericInGameMethods": new genericInGameMethodsFacet(),
+  "badger.genericInGame": genericInGameFacet,
+  "badger.genericInGameMethods": genericInGameMethodsFacet,
 
-  "badger.badgerStartMenu": new badgerStartMenuFacet(),
-  "badger.badgerStartMenuMethods": new badgerStartMenuMethodsFacet(),
+  "badger.badgerStartMenu": badgerStartMenuFacet,
+  "badger.badgerStartMenuMethods": badgerStartMenuMethodsFacet,
 
-  "badger.lobby": new lobbyFacet(),
-  "badger.lobbyMethods": new lobbyMethodsFacet(),
+  "badger.lobby": lobbyFacet,
+  "badger.lobbyMethods": lobbyMethodsFacet,
 
-  "badger.settings": new settingsFacet(),
-  "badger.settingsMethods": new settingsMethodsFacet(),
+  "badger.settings": settingsFacet,
+  "badger.settingsMethods": settingsMethodsFacet,
 
-  "badger.screenUtil": new screenUtilFacet(),
-  "badger.screenUtilMethods": new screenUtilMethodsFacet(),
+  "badger.screenUtil": screenUtilFacet,
+  "badger.screenUtilMethods": screenUtilMethodsFacet,
 
-  "badger.badgerCommonInput": new badgerCommonInputFacet(),
-  "badger.badgerCommonInputMethods": new badgerCommonInputMethodsFacet(),
+  "badger.badgerCommonInput": badgerCommonInputFacet,
+  "badger.badgerCommonInputMethods": badgerCommonInputMethodsFacet,
 
-  "badger.marketplace": new marketplaceFacet(),
-  "badger.marketplaceMethods": new marketplaceMethodsFacet(),
+  "badger.marketplace": marketplaceFacet,
+  "badger.marketplaceMethods": marketplaceMethodsFacet,
 
-  "badger.badgerInvite": new badgerInviteFacet(),
-  "badger.badgerInviteMethods": new badgerInviteMethodsFacet(),
+  "badger.badgerInvite": badgerInviteFacet,
+  "badger.badgerInviteMethods": badgerInviteMethodsFacet,
 
-  "badger.genericCommon": new genericCommonFacet(),
-  "badger.genericCommonMethods": new genericCommonMethodsFacet(),
+  "badger.genericCommon": genericCommonFacet,
+  "badger.genericCommonMethods": genericCommonMethodsFacet,
 
-  "badger.playerInfo": new playerInfoFacet(),
-  "badger.endCredits": new endCreditsFacet(),
+  "badger.playerInfo": playerInfoFacet,
+  "badger.endCredits": endCreditsFacet,
 
-  "badger.hud": new hudFacet(),
-  "badger.hudLowVolume": new hudLowVolumeFacet(),
-  "badger.hotbar": new HotbarFacet(),
-  "badger.badgerInput": new badgerInputFacet(),
-  "badger.subtitles": new subtitlesFacet(),
-  "badger.highVolume": new highVolumeFacet(),
-  "badger.radialMenu": new radialMenuFacet(),
-  "badger.resources": new resourcesFacet(),
-  "badger.ticketTimers": new ticketTimersFacet(),
-  "badger.debugDraw": new debugDrawFacet(),
-  "badger.songbook": new songbookFacet(),
-  "badger.uiEvent": new uiEventFacet(),
+  "badger.hud": hudFacet,
+  "badger.hudLowVolume": hudLowVolumeFacet,
+  "badger.hotbar": HotbarFacet,
+  "badger.badgerInput": badgerInputFacet,
+  "badger.subtitles": subtitlesFacet,
+  "badger.highVolume": highVolumeFacet,
+  "badger.radialMenu": radialMenuFacet,
+  "badger.resources": resourcesFacet,
+  "badger.ticketTimers": ticketTimersFacet,
+  "badger.debugDraw": debugDrawFacet,
+  "badger.songbook": songbookFacet,
+  "badger.uiEvent": uiEventFacet,
 };
 
 for(const name of Object.keys(_ME_Facets)) {
     _ME_Facets[name] = dummyFacet(_ME_Facets[name]);
 }
+window._ME_Facets = _ME_Facets;
 
 
 class TriggerEvent {
+  constructor(engine) {
+    this.engine = engine
+  }
+
   apply(unk, data) {
     const eventType = data[0];
     switch (eventType) {
       case "facet:request":
-        const facet = data[1][0];
-        if (_ME_Facets.hasOwnProperty(facet)) {
-          debugMessage("TriggerEvent", colorInfo, "Sending Dummy Facet", facet);
-          const handler = _ME_OnBindings[`facet:updated:${facet}`];
-          if(handler) handler(_ME_Facets[facet]);
+        const facetName = data[1][0];
+        const facet = this.engine.facets[facetName];
+        if (facet) {
+          debugMessage("TriggerEvent", colorInfo, "Sending Facet", facetName);
+          const handler = _ME_OnBindings[`facet:updated:${facetName}`];
+          if(handler) handler(facet);
         } else {
-          debugMessage("TriggerEvent", colorError, "MISSING FACET", facet);
-          const handler = _ME_OnBindings[`facet:error:${facet}`];
-          if(handler) handler(_ME_Facets[facet]);
+          debugMessage("TriggerEvent", colorError, "MISSING FACET", facetName);
+          const handler = _ME_OnBindings[`facet:error:${facetName}`];
+          if(handler) handler(facet);
         }
         break;
     
@@ -1144,8 +1147,17 @@ class TriggerEvent {
 }
 
 class Engine {
+  facets = {}
+  createFacets() {
+    for(const name of Object.keys(_ME_Facets)) {
+      this.facets[name] = dummyFacet(new _ME_Facets[name]);
+    }
+  }
+
   constructor() {
-    this.TriggerEvent = new TriggerEvent();    
+    this.TriggerEvent = new TriggerEvent(this);    
+    this.isAttached = false;
+    this.createFacets();
   }
 
   on(event, callback) {
@@ -1178,11 +1190,5 @@ class Engine {
   }
 }
 
-const engine = new Engine();
+const engine = dummyFacet(new Engine());
 window.engine = engine;
-
-
-console.log("aaaa", location.href);
-  this.window.dispatchEvent(new HashChangeEvent("hashchange", {
-    newURL: location.href,
-  }));
