@@ -23,8 +23,6 @@ if (navigator.userAgent.match("/cohtml/i")) {
 const USE_TRANSLATIONS = true; //requires a loc.lang at base of host dir
 
 let _ME_OnBindings = {};
-let _ME_Translations = {};
-
 
 
 //#region core
@@ -211,51 +209,13 @@ class RouterFacetHistory {
   };
 }
 
-let routesLoaded_resolve;
-const routesLoaded = new Promise((r) => routesLoaded_resolve = r);
-class RouterFacet {
-  #routes = [];
-  constructor() {
-    fetch("routes.json").then(resp => resp.json()).then(routes_json => {
-      this.#routes = routes_json.routes;
-      routesLoaded_resolve();
-    });
-  }
+function gotoRoute(path) {
+  window.parent.postMessage({RouterEvent: path});
+}
 
+class RouterFacet {
   engineUITransitionTime = 800;
   history = new RouterFacetHistory();
-
-  // not gameface
-  lookupRoute(path) {
-    let supportedRoute = null;
-    const route = this.#routes.find(route => {
-      supportedRoute = route.supportedRoutes.find(supportedRoute => {
-        const re = new RegExp(supportedRoute.regexp);
-        if(re.test(path)) {
-          return true;
-        }
-        return false;
-      });
-      if(supportedRoute) {
-        return true;
-      }
-      return false;
-    });
-    if(route && route.fileName != location.pathname) {
-      debugMessage("Router", colorInfo, "Navigating to", route.fileName);
-      location.pathname = route.fileName;
-      location.hash = supportedRoute.route;
-      return true;
-    }
-    return false;
-  }
-}
-function gotoRoute(path) {
-  const router = _ME_Facets["core.router"];
-  if(router.lookupRoute(path)) {
-    return;
-  }
-  location.hash = path;
 }
 
 
@@ -271,19 +231,19 @@ class AnimationFacet {
 
 
 class SoundFacet {
-  #sound_definitions = {};
+  sound_definitions = {};
   constructor() {
-    fetch("sound_definitions.json")
+    fetch("/hbui/sound_definitions.json")
       .then((response) => response.json())
       .then((sounddat) => {
-        this.#sound_definitions = sounddat;
+        this.sound_definitions = sounddat;
         debugMessage("Sound Definitions", colorInfo, "Loaded!");
       });
   }
 
   play(id) {
     debugMessage("SoundFacet", colorInfo, `Sound ${id} requested.`);
-    const soundData = this.#sound_definitions[id];
+    const soundData = this.sound_definitions[id];
     if(!soundData) {
       debugMessage("SoundFacet", colorError, {id}, "Not Found");
       return;
@@ -902,13 +862,13 @@ class EditorInputFacet {};
 
 const loggingHandler = {
   get(target, property) {
-    debugMessage(`DUMMY ${target.__name}`, colorDebug, property);
+    debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
     return target[property];
   },
 };
 
-function dummyFacet(name) {
-  return new Proxy({__name: name}, loggingHandler)
+function dummyFacet(target) {
+  return new Proxy(target, loggingHandler)
 }
 
 class LoggingProxy {
@@ -930,30 +890,36 @@ class LoggingProxy {
 }
 
 
-class genericPreGameFacet extends LoggingProxy {
+class genericPreGameFacet {
   isPublishBuild = false
   shouldPlaySplashVideo = false
   shouldPlayLogoVideo = false
 }
 
-class genericCommonFacet extends LoggingProxy {
+class genericPreGameMethods {
+
+}
+
+
+class genericCommonFacet {
   localPlayerPlatform = 0
   uiStyle = 0
 }
+class genericCommonMethodsFacet {}
 
-class badgerCommonInputFacet extends LoggingProxy {
-
-}
-
-class settingsFacet extends LoggingProxy {
+class badgerCommonInputFacet {
 
 }
 
-class settingsMethodsFacet extends LoggingProxy {
+class settingsFacet {
 
 }
 
-class endCreditsFacet extends LoggingProxy {
+class settingsMethodsFacet {
+
+}
+
+class endCreditsFacet {
   creditsText = ["me lol"]
 }
 
@@ -965,13 +931,13 @@ class badgerCommonInputMethodsFacet extends (LoggingProxy, Array) {
   }
 }
 
-class playerInfoFacet extends LoggingProxy {
+class playerInfoFacet {
   currentHealth = 20
   totalHealth = 20
   isTakingDamage = false
 }
 
-class hudLowVolumeFacet extends LoggingProxy {
+class hudLowVolumeFacet {
   hudMessages = []
   logMessages = []
   cinematicData = []
@@ -980,7 +946,7 @@ class hudLowVolumeFacet extends LoggingProxy {
   skipCinematicWindowOpen = false
   cinematicSkipState = false
 }
-class HotbarFacet extends LoggingProxy {
+class HotbarFacet {
   hotbarTooltipErrorMessages = []
   hotbarItems = []
   currentHotbarSlot = 0
@@ -988,46 +954,46 @@ class HotbarFacet extends LoggingProxy {
   hotbarQuickBuildItem = null
   showToolbarDisplay = true
 }
-class badgerInputFacet extends LoggingProxy {
+class badgerInputFacet {
   buttonMappingData = []
   keyStates = []
   actionKeysPressed = []
   currentInputMethod = 0
 }
-class subtitlesFacet extends LoggingProxy {
+class subtitlesFacet {
   VOSubtitles = []
   devSubtitles = []
 }
-class highVolumeFacet extends LoggingProxy {
+class highVolumeFacet {
   objectiveHealthBars = []
   onscreenWaypointMarkers = []
   bottomCompassMarkers = []
   topCompassMarkers = []
   displayedGlobalTimer = true
 }
-class genericInGameFacet extends LoggingProxy {
+class genericInGameFacet {
   emphasizedHUDItems = []
 }
-class genericInGameMethodsFacet extends LoggingProxy {
+class genericInGameMethodsFacet {
   onScreenOpened(screen) {
     debugMessage("genericInGameMethods", colorInfo, "onScreenOpened", screen);
   }
 }
 
-class hudFacet extends LoggingProxy {
+class hudFacet {
   canAffordBuildable = true
   isInBattleView = false
   isInBuildPreview = false
   showSongbookIndicator = false
   interactableBuilding = false
 }
-class ticketTimersFacet extends LoggingProxy {}
-class resourcesFacet extends LoggingProxy {
+class ticketTimersFacet {}
+class resourcesFacet {
   economyTickets = []
   hudTeamResources = []
   hudContextualResources = []
 }
-class radialMenuFacet extends LoggingProxy {
+class radialMenuFacet {
   isMenuShowing = false
   currentLuredUnitCount = 0
   currentLuredUnitType = 0
@@ -1035,12 +1001,27 @@ class radialMenuFacet extends LoggingProxy {
   isHeroLuring = false
   isHeroDirecting = false
 }
-class debugDrawFacet extends LoggingProxy {
+class debugDrawFacet {
 
 }
 
-class songbookFacet extends LoggingProxy {}
-class uiEventFacet extends LoggingProxy {}
+class songbookFacet {}
+class uiEventFacet {}
+
+class badgerStartMenuFacet {}
+class badgerStartMenuMethodsFacet {}
+
+class lobbyFacet {}
+class lobbyMethodsFacet {}
+
+class screenUtilFacet {}
+class screenUtilMethodsFacet {}
+
+class marketplaceFacet {}
+class marketplaceMethodsFacet {}
+
+class badgerInviteFacet {}
+class badgerInviteMethodsFacet {}
 
 //#endregion badger
 
@@ -1082,31 +1063,34 @@ let _ME_Facets = {
   "vanilla.editorInput": new EditorInputFacet(),
   // == Badger Facets == //
   "badger.genericPreGame": new genericPreGameFacet(),
-  "badger.genericPreGameMethods": dummyFacet("badger.genericPreGameMethods"),
+  "badger.genericPreGameMethods": new genericPreGameMethods(),
 
   "badger.genericInGame": new genericInGameFacet(),
   "badger.genericInGameMethods": new genericInGameMethodsFacet(),
 
-  "badger.badgerStartMenuMethods": dummyFacet("badger.badgerStartMenuMethods"),
+  "badger.badgerStartMenu": new badgerStartMenuFacet(),
+  "badger.badgerStartMenuMethods": new badgerStartMenuMethodsFacet(),
 
-  "badger.lobby": dummyFacet("badger.lobby"),
-  "badger.lobbyMethods": dummyFacet("badger.lobbyMethods"),
+  "badger.lobby": new lobbyFacet(),
+  "badger.lobbyMethods": new lobbyMethodsFacet(),
 
   "badger.settings": new settingsFacet(),
   "badger.settingsMethods": new settingsMethodsFacet(),
 
-  "badger.screenUtilMethods": dummyFacet("badger.screenUtilMethods"),
+  "badger.screenUtil": new screenUtilFacet(),
+  "badger.screenUtilMethods": new screenUtilMethodsFacet(),
 
   "badger.badgerCommonInput": new badgerCommonInputFacet(),
   "badger.badgerCommonInputMethods": new badgerCommonInputMethodsFacet(),
 
-  "badger.marketplace": dummyFacet("badger.marketplace"),
-  "badger.marketplaceMethods": dummyFacet("badger.marketplaceMethods"),
+  "badger.marketplace": new marketplaceFacet(),
+  "badger.marketplaceMethods": new marketplaceMethodsFacet(),
 
-  "badger.badgerInviteMethods": dummyFacet("badger.badgerInviteMethods"),
+  "badger.badgerInvite": new badgerInviteFacet(),
+  "badger.badgerInviteMethods": new badgerInviteMethodsFacet(),
 
   "badger.genericCommon": new genericCommonFacet(),
-  "badger.genericCommonMethods": dummyFacet("badger.genericCommonMethods"),
+  "badger.genericCommonMethods": new genericCommonMethodsFacet(),
 
   "badger.playerInfo": new playerInfoFacet(),
   "badger.endCredits": new endCreditsFacet(),
@@ -1124,6 +1108,10 @@ let _ME_Facets = {
   "badger.songbook": new songbookFacet(),
   "badger.uiEvent": new uiEventFacet(),
 };
+
+for(const name of Object.keys(_ME_Facets)) {
+    _ME_Facets[name] = dummyFacet(_ME_Facets[name]);
+}
 
 
 class TriggerEvent {
@@ -1155,43 +1143,9 @@ class TriggerEvent {
   };
 }
 
-let localizationLoaded_resolve;
-const localizationLoaded = new Promise((r) => localizationLoaded_resolve = r);
-async function loadLocalization() {
-  let version = await fetch("VERSION").then(resp => resp.text()).catch(e => {
-    debugMessage("Translations", colorError, {
-      "error": e,
-    });
-  });
-
-  if(version) {
-    version = version.split("\n")[0]
-    debugMessage("Ore UI", colorInfo, {"Version": version});
-    version = "."+version;
-  }
-
-  debugMessage("Translations", colorInfo, "Loading loc.lang file...");
-  const locdat = await fetch(`/loc${version}.lang`).then(resp => resp.text()).catch(e => {
-    debugMessage("Translations", colorError, {
-      "error": e,
-    });
-  });
-  const lines = locdat.split("\n");
-  lines.forEach(function (item, ind) {
-    keyval = item.split("=");
-    _ME_Translations[keyval[0]] = keyval[1]?.replace("\r", ""); //oh windows you special snowflake
-  });
-
-  localizationLoaded_resolve();
-  return;
-}
-
-const loadFinished = Promise.all([localizationLoaded, routesLoaded]);
-
 class Engine {
   constructor() {
     this.TriggerEvent = new TriggerEvent();    
-    loadLocalization();
   }
 
   on(event, callback) {
@@ -1223,38 +1177,12 @@ class Engine {
     debugMessage("BindingsReady", colorDebug);
   }
 }
+
 const engine = new Engine();
 window.engine = engine;
 
 
-// load the original script
-const me = document.currentScript;
-loadFinished.then(() => {
-  const oreuiSrc = me.getAttribute("oreui");
-  if(!oreuiSrc) {
-    debugMessage("Loader", colorError, "oreui not set on script tag");
-  }
-  const script = document.createElement("script");
-  script.src = oreuiSrc;
-  me.insertAdjacentElement("afterend", script);
-});
-
-
-document.addEventListener("DOMContentLoaded", () => {
-  let newUrl = location.href;
-  if(me.page && location.hash == "") {
-    newUrl = me.page;
-  }
-
-  window.dispatchEvent(new HashChangeEvent("hashchange", {
-    newURL: newUrl,
+console.log("aaaa", location.href);
+  this.window.dispatchEvent(new HashChangeEvent("hashchange", {
+    newURL: location.href,
   }));
-});
-
-const style = document.createElement("style");
-style.innerHTML = `
-div {
-  height: min-content;
-}
-`;
-document.body.appendChild(style);
