@@ -920,7 +920,7 @@ class LoggingProxy {
     return {
       get: (target, property) => {
         const v = target[property];
-        if(!v) {
+        if(v === undefined) {
           debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
         }
         return v;
@@ -931,10 +931,14 @@ class LoggingProxy {
 
 
 class genericPreGameFacet extends LoggingProxy {
+  isPublishBuild = false
+  shouldPlaySplashVideo = false
+  shouldPlayLogoVideo = false
 }
 
 class genericCommonFacet extends LoggingProxy {
   localPlayerPlatform = 0
+  uiStyle = 0
 }
 
 class badgerCommonInputFacet extends LoggingProxy {
@@ -948,6 +952,95 @@ class settingsFacet extends LoggingProxy {
 class settingsMethodsFacet extends LoggingProxy {
 
 }
+
+class endCreditsFacet extends LoggingProxy {
+  creditsText = ["me lol"]
+}
+
+class badgerCommonInputMethodsFacet extends (LoggingProxy, Array) {
+  setUIIsGamepad(val) {}
+  
+  toPrimitive() {
+    return []
+  }
+}
+
+class playerInfoFacet extends LoggingProxy {
+  currentHealth = 20
+  totalHealth = 20
+  isTakingDamage = false
+}
+
+class hudLowVolumeFacet extends LoggingProxy {
+  hudMessages = []
+  logMessages = []
+  cinematicData = []
+  hudVisibility = []
+  isTapToSkipCinematic = false
+  skipCinematicWindowOpen = false
+  cinematicSkipState = false
+}
+class HotbarFacet extends LoggingProxy {
+  hotbarTooltipErrorMessages = []
+  hotbarItems = []
+  currentHotbarSlot = 0
+  currentToolbarId = 0
+  hotbarQuickBuildItem = null
+  showToolbarDisplay = true
+}
+class badgerInputFacet extends LoggingProxy {
+  buttonMappingData = []
+  keyStates = []
+  actionKeysPressed = []
+  currentInputMethod = 0
+}
+class subtitlesFacet extends LoggingProxy {
+  VOSubtitles = []
+  devSubtitles = []
+}
+class highVolumeFacet extends LoggingProxy {
+  objectiveHealthBars = []
+  onscreenWaypointMarkers = []
+  bottomCompassMarkers = []
+  topCompassMarkers = []
+  displayedGlobalTimer = true
+}
+class genericInGameFacet extends LoggingProxy {
+  emphasizedHUDItems = []
+}
+class genericInGameMethodsFacet extends LoggingProxy {
+  onScreenOpened(screen) {
+    debugMessage("genericInGameMethods", colorInfo, "onScreenOpened", screen);
+  }
+}
+
+class hudFacet extends LoggingProxy {
+  canAffordBuildable = true
+  isInBattleView = false
+  isInBuildPreview = false
+  showSongbookIndicator = false
+  interactableBuilding = false
+}
+class ticketTimersFacet extends LoggingProxy {}
+class resourcesFacet extends LoggingProxy {
+  economyTickets = []
+  hudTeamResources = []
+  hudContextualResources = []
+}
+class radialMenuFacet extends LoggingProxy {
+  isMenuShowing = false
+  currentLuredUnitCount = 0
+  currentLuredUnitType = 0
+  lureCap = 5
+  isHeroLuring = false
+  isHeroDirecting = false
+}
+class debugDrawFacet extends LoggingProxy {
+
+}
+
+class songbookFacet extends LoggingProxy {}
+class uiEventFacet extends LoggingProxy {}
 
 //#endregion badger
 
@@ -988,18 +1081,48 @@ let _ME_Facets = {
   "vanilla.editor": new EditorFacet(),
   "vanilla.editorInput": new EditorInputFacet(),
   // == Badger Facets == //
-  "badger.genericPreGame": dummyFacet("badger.genericPreGame"),
+  "badger.genericPreGame": new genericPreGameFacet(),
   "badger.genericPreGameMethods": dummyFacet("badger.genericPreGameMethods"),
+
+  "badger.genericInGame": new genericInGameFacet(),
+  "badger.genericInGameMethods": new genericInGameMethodsFacet(),
+
+  "badger.badgerStartMenuMethods": dummyFacet("badger.badgerStartMenuMethods"),
+
   "badger.lobby": dummyFacet("badger.lobby"),
+  "badger.lobbyMethods": dummyFacet("badger.lobbyMethods"),
+
   "badger.settings": new settingsFacet(),
   "badger.settingsMethods": new settingsMethodsFacet(),
-  "badger.genericCommon": new genericCommonFacet(),
-  "badger.playerInfo": dummyFacet("badger.playerInfo"),
+
   "badger.screenUtilMethods": dummyFacet("badger.screenUtilMethods"),
-  "badger.lobbyMethods": dummyFacet("badger.lobbyMethods"),
+
   "badger.badgerCommonInput": new badgerCommonInputFacet(),
-  "badger.badgerCommonInputMethods": dummyFacet("badger.badgerCommonInputMethods"),
-  "badger.badgerInviteMethods": dummyFacet("badger.badgerInviteMethods")
+  "badger.badgerCommonInputMethods": new badgerCommonInputMethodsFacet(),
+
+  "badger.marketplace": dummyFacet("badger.marketplace"),
+  "badger.marketplaceMethods": dummyFacet("badger.marketplaceMethods"),
+
+  "badger.badgerInviteMethods": dummyFacet("badger.badgerInviteMethods"),
+
+  "badger.genericCommon": new genericCommonFacet(),
+  "badger.genericCommonMethods": dummyFacet("badger.genericCommonMethods"),
+
+  "badger.playerInfo": new playerInfoFacet(),
+  "badger.endCredits": new endCreditsFacet(),
+
+  "badger.hud": new hudFacet(),
+  "badger.hudLowVolume": new hudLowVolumeFacet(),
+  "badger.hotbar": new HotbarFacet(),
+  "badger.badgerInput": new badgerInputFacet(),
+  "badger.subtitles": new subtitlesFacet(),
+  "badger.highVolume": new highVolumeFacet(),
+  "badger.radialMenu": new radialMenuFacet(),
+  "badger.resources": new resourcesFacet(),
+  "badger.ticketTimers": new ticketTimersFacet(),
+  "badger.debugDraw": new debugDrawFacet(),
+  "badger.songbook": new songbookFacet(),
+  "badger.uiEvent": new uiEventFacet(),
 };
 
 
