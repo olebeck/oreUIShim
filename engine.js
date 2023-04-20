@@ -211,11 +211,11 @@ class ScreenReader extends Facet {
 
 
 class RouterFacetHistory {
-  /** @argument router {RouterFacet} */
+  /** @argument router {Router} */
   constructor(router) {
     const hist = this;
     
-    const l = (m) => {
+    const onMessage = (m) => {
       if(m.data.pathname) {
         console.log(m.data);
         hist.location.pathname = m.data.pathname;
@@ -228,9 +228,9 @@ class RouterFacetHistory {
         }
       }
     };
-    window.addEventListener("message", l);
+    window.addEventListener("message", onMessage);
     onGlobalListenerRemoval.addListener(() => {
-      window.addEventListener("message", l);
+      window.addEventListener("message", onMessage);
     });
   }
 
@@ -275,7 +275,7 @@ class Router extends Facet {
   engineUITransitionTime = 800;
   constructor() {
     super();
-    this.history = dummyFacet(new RouterFacetHistory(this));
+    this.history = new RouterFacetHistory(this);
   }
 }
 
@@ -962,6 +962,12 @@ class genericPreGameMethods extends Facet {
   }
   updateCharacterSceneToSavedCharacter = () => {
   }
+  setCharacterScene = () => {
+    console.log("setCharacterScene");
+  }
+  checkHasEnoughStorage = () => {
+    console.log("checkHasEnoughStorage");
+  }
 }
 
 
@@ -993,6 +999,7 @@ class badgerCommonInput extends Facet {
 
 class settings extends Facet {
   settingCategories = []
+  settings = []
   showPrivacyChangedNoInternetModal = false
 }
 
@@ -1109,6 +1116,9 @@ class badgerStartMenuMethods extends Facet {
   startGamePVPHub() {
     gotoRoute("/badger/pvpLobby")
   }
+  startGameCampaignHub() {
+    gotoRoute("/badger/campaignLobby")
+  }
 }
 
 class lobby extends Facet {
@@ -1127,6 +1137,7 @@ class lobby extends Facet {
   lobbyTitle = "lobbyTitle"
   lobbyPrivacy = false
   minPlayerCount = 1
+  lobbyMaxSlots = 10
   isMinPlayerCheckDisabled = true
   lobbyStartMatchTimer = 1
   teamSwitching = true
@@ -1136,10 +1147,17 @@ class lobby extends Facet {
 class lobbyMethods extends Facet {
   startMatchmaking = () => {
   }
+  exitLobby = () => {
+    gotoRoute("/badger/mainMenu");
+  }
 }
 
 class screenUtil extends Facet {}
-class screenUtilMethods extends Facet {}
+class screenUtilMethods extends Facet {
+  goBackToMainMenu = () => {
+    gotoRoute("/badger/mainMenu");
+  }
+}
 
 class marketplace extends Facet {
   isInventoryView = false
@@ -1161,6 +1179,12 @@ class marketplaceMethods extends Facet {
   }
   onMinecoinPurchaseModalDisplayStateChanged = () => {
 
+  }
+
+  setIsInventoryView = (value) => {
+    const marketplace = engine.getFacet("badger.marketplace");
+    marketplace.isInventoryView = value;
+    marketplace.update();
   }
 
   goToStoreRoot = () => {
@@ -1201,6 +1225,12 @@ class localWorlds extends Facet {
   worlds = []
 }
 class localWorldsMethods extends Facet {}
+
+class loadingScreen extends Facet {
+  loadIsCancellable = true
+  isLoading = false
+}
+class loadingScreenMethods extends Facet {}
 
 //#endregion badger
 
@@ -1291,6 +1321,9 @@ const _ME_Facets = {
 
   "badger.localWorlds": localWorlds,
   "badger.localWorldsMethods": localWorldsMethods,
+
+  "badger.loadingScreen": loadingScreen,
+  "badger.loadingScreenMethods": loadingScreenMethods
 };
 
 
@@ -1300,7 +1333,7 @@ class TriggerEvent {
     switch (eventType) {
       case "facet:request":
         const facetName = data[1][0];
-        const facet = engine.facets[facetName];
+        const facet = engine.getFacet(facetName);
         if (facet) {
           debugMessage("TriggerEvent", colorInfo, "Sending Facet", facetName);
           facet.update();
@@ -1332,6 +1365,10 @@ class Engine {
       this.facets[name] = facet;
       facet.facetName = name;
     }
+  }
+
+  getFacet(name) {
+    return this.facets[name];
   }
 
   constructor() {
