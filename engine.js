@@ -1239,7 +1239,3 @@ class Engine {
 
 const engine = dummyFacet(new Engine());
 window.engine = engine;
-
-window.dispatchEvent(new HashChangeEvent("hashchange", {
-  newURL: location.href
-}))
