@@ -28,7 +28,6 @@ class Router {
       </style>
       <script src="/engine.js"></script>
     `);
-    this.iframe.contentDocument.close();
     this.iframe.contentWindow._ME_Translations = _ME_Translations;
 
     window.addEventListener("hashchange", (ev) => {
@@ -85,8 +84,10 @@ class Router {
       debugMessage("Router", colorDebug, "Loading File", filename);
       let text = await fetch("./"+filename).then(resp => resp.text());
       this.iframe.setAttribute("filename", filename);
-      this.iframe.contentDocument.write(text);
-      this.iframe.contentDocument.close();
+      this.iframe.contentWindow.postMessage({
+        pathname: path,
+        content: text,
+      });
     }
     
   }

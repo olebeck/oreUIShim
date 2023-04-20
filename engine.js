@@ -162,18 +162,65 @@ class ScreenReaderFacet {
 };
 
 
+const onGlobalListenerRemoval = (() => {
+  const callbacks = new Set();
+  const eventName = "listenerStillAttached";
+
+  window.addEventListener(eventName, _handleListenerStillAttached);
+
+  new MutationObserver((entries) => {
+    const documentReplaced = entries.some(entry =>
+      Array.from(entry.addedNodes).includes(document.documentElement)
+    );
+    if (documentReplaced) {
+      const timeoutId = setTimeout(_handleListenerDetached);
+      window.dispatchEvent(new CustomEvent(eventName, {detail: timeoutId}));
+    }
+  }).observe(document, { childList: true });
+
+  function _handleListenerDetached() {
+    // reattach event listener
+    window.addEventListener(eventName, _handleListenerStillAttached);
+    // run registered callbacks
+    callbacks.forEach((callback) => callback());
+  }
+
+  function _handleListenerStillAttached(event) {
+    clearTimeout(event.detail);
+  }
+
+  return  {
+    addListener: c => void callbacks.add(c),
+    hasListener: c =>  callbacks.has(c),
+    removeListener: c => callbacks.delete(c)
+  }
+})();
+
+
 class RouterFacetHistory {
   constructor(router) {
-    // hash changes MUST be triggered by parent page changing the url
-    window.addEventListener("hashchange", (ev) => {
-      const pathname = new URL(ev.newURL).hash.slice(1);
-      console.log("pathname", pathname, this.location)
-      this.location.pathname = pathname;
-
-      const handler = _ME_OnBindings[`facet:updated:core.router`];
-      if(handler) {
-        handler(this.router);
+    const hist = this;
+    
+    const l = (m) => {
+      if(m.data.pathname) {
+        console.log(m.data);
+        hist.location.pathname = m.data.pathname;
+        if(m.data.content) {
+          _ME_OnBindings = {}
+          document.write(m.data.content);
+          document.close();
+        } else {
+          const handler = _ME_OnBindings[`facet:updated:core.router`];
+          if(handler) {
+            handler(router);
+          }
+        }
       }
+    };
+    window.addEventListener("message", l);
+
+    onGlobalListenerRemoval.addListener(() => {
+      window.addEventListener("message", l);
     });
   }
 
@@ -1192,3 +1239,7 @@ class Engine {
 
 const engine = dummyFacet(new Engine());
 window.engine = engine;
+
+window.dispatchEvent(new HashChangeEvent("hashchange", {
+  newURL: location.href
+}))
