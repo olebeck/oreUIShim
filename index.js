@@ -36,13 +36,16 @@ class Router {
         location.hash = "/badger/mainMenu";
         return;
       }
-      this.lookupRoute(path);
+      const found = this.lookupRoute(path);
+      if(!found) {
+        debugMessage("Router", colorError, path, "not found");
+        this.iframe.contentDocument.write("<body><h1>Not found</h1></body>");
+      }
     });
 
     window.addEventListener("message", (ev) => {
         console.log(ev.data);
         if(ev.data.RouterEvent) {
-            debugMessage("RouterEvent", colorInfo, ev.data.RouterEvent);
             window.location.hash = ev.data.RouterEvent;
         }
     });
@@ -54,7 +57,6 @@ class Router {
   }
 
   lookupRoute(path) {
-    console.log("lookupRoute", path)
     let supportedRoute = null;
     const route = this.routes.find(route => {
       supportedRoute = route.supportedRoutes.find(supportedRoute => {
@@ -70,7 +72,6 @@ class Router {
       return false;
     });
     if(route) {
-      debugMessage("Router", colorInfo, "Navigating to", route.fileName);
       this.loadIframe(route.fileName, path);
       return true;
     }
@@ -80,16 +81,16 @@ class Router {
   async loadIframe(filename, path) {
     this.iframe.contentWindow.location.hash = path;
     const oldFilename = this.iframe.getAttribute("filename");
+    let text = null;
     if(oldFilename != filename) {
       debugMessage("Router", colorDebug, "Loading File", filename);
-      let text = await fetch("./"+filename).then(resp => resp.text());
+      text = await fetch("./"+filename).then(resp => resp.text());
       this.iframe.setAttribute("filename", filename);
-      this.iframe.contentWindow.postMessage({
-        pathname: path,
-        content: text,
-      });
     }
-    
+    this.iframe.contentWindow.postMessage({
+      pathname: path,
+      content: text,
+    });
   }
 }
 

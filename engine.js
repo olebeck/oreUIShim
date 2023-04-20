@@ -15,7 +15,6 @@ function debugMessage(name, color, ...data) {
   console.log(`[%cEngineWrapper%c] %c%s`, "color: #0398fc;", "color: initial;", `color: ${color};`, name, ...data);
 }
 
-
 if (navigator.userAgent.match("/cohtml/i")) {
   debugMessage("Loader", colorWarn, "OreUI Shim Injected, but the UI is being loaded in gameface!");
 }
@@ -23,144 +22,6 @@ if (navigator.userAgent.match("/cohtml/i")) {
 const USE_TRANSLATIONS = true; //requires a loc.lang at base of host dir
 
 let _ME_OnBindings = {};
-
-
-//#region core
-
-class LocaleFacet {
-  locale = "en_US";
-  translate(id) {
-    if (USE_TRANSLATIONS) {
-      return _ME_Translations[id];
-    } else {
-      debugMessage("LocaleFacet", colorWarn, "USE_TRANSLATIONS not set, skipping translate", {id});
-      return id;
-    }
-  };
-  translateWithParameters(id, params) {
-    let translation = this.translate(id);
-    for (let i = 1; i <= params.length; i++) {
-      translation = translation?.replaceAll("%" + i + "$s", params[i - 1])
-    };
-    return translation;
-  };
-  formatDate(date) {
-    return new Date(date).toLocaleDateString();
-  };
-};
-
-
-const _ME_Platforms = {
-  IOS: 0,
-  GOOGLE: 1,
-  AMAZON_HANDHELD: 2,
-  UWP: 3,
-  XBOX: 4,
-  NX_HANDHELD: 5,
-  PS4: 6,
-  GEARVR: 7,
-  WIN32: 8,
-  MACOS: 9,
-  AMAZON_TV: 10,
-  NX_TV: 11,
-  PS5: 12,
-};
-
-class DeviceInfoFacet {
-  #div;
-  constructor() {
-    let div = document.createElement("div");
-    div.style.width = "1cm";
-    div.style.height = "1cm";
-    div.style.position = "absolute";
-    div.style.top = "10000px";
-    this.#div = div;
-  }
-
-  get pixelsPerMillimeter() {
-      return this.#div.getBoundingClientRect().width / 10;
-  }
-
-  get displayWidth() {
-    return window.innerWidth;
-  }
-
-  get displayHeight() {
-    return window.innerHeight;
-  }
-
-  inputMethods = [_ME_InputMethods.GAMEPAD_INPUT_METHOD, _ME_InputMethods.TOUCH_INPUT_METHOD, _ME_InputMethods.MOUSE_INPUT_METHOD];
-  isLowMemoryDevice = false;
-  guiScaleBase = 4;
-  platform = _ME_Platforms.WIN32;
-  guiScaleModifier = 0;
-}
-
-
-class SafeZoneFacet {
-  safeAreaX = 1;
-  screenPositionX = 0;
-  safeAreaY = 1;
-  screenPositionY = 0;
-};
-
-
-class FeatureFlagsFacet {
-  flags = [
-    "facet",
-    "core.deviceInformation",
-    "core.input",
-    "core.locale",
-    "core.router",
-    "core.safeZone",
-    "core.screenReader",
-    "core.splitScreen",
-    "vanilla.achievements",
-    "vanilla.enableSeedTemplates",
-    "vanilla.enableBehaviorPacksTab",
-    "vanilla.enableResourcePacksTab",
-    "vanilla.enableResourcePacksRealmsPlusFeatureFlag",
-  ];
-};
-
-
-class SplitScreenFacet {
-  numActivePlayers = 1;
-  splitScreenDirection = 0;
-  splitScreenPosition = 0;
-};
-
-
-const _ME_InputMethods = {
-  GAMEPAD_INPUT_METHOD: 0,
-  TOUCH_INPUT_METHOD: 1,
-  MOUSE_INPUT_METHOD: 2,
-  MOTION_CONTROLLER_INPUT_METHOD: 3,
-};
-
-class InputFacet {
-  currentInputType = _ME_InputMethods.MOUSE_INPUT_METHOD;
-  swapABButtons = false;
-  acceptInputFromAllControllers = false;
-  gameControllerId = 0;
-  swapXYButtons = false;
-};
-
-
-class ScreenReaderFacet {
-  isChatTextToSpeechEnabled = false;
-  isIdle = false;
-  isUITextToSpeechEnabled = false;
-
-  read(text, interuptable, required, play_in_background) {
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-  }
-
-  clear() {
-    debugMessage("screenReaderFacet", colorDebug, "clear");
-  }
-};
-
 
 const onGlobalListenerRemoval = (() => {
   const callbacks = new Set();
@@ -197,7 +58,160 @@ const onGlobalListenerRemoval = (() => {
 })();
 
 
+class Facet {
+  update() {
+    const func = engine.bindings[`facet:updated:${this.facetName}`];
+    if(func) func(this);
+  }
+  error() {
+    const func = engine.bindings[`facet:error:${this.facetName}`];
+    if(func) func(this);
+  }
+}
+
+
+//#region core
+
+
+
+const _ME_Platforms = {
+  IOS: 0,
+  GOOGLE: 1,
+  AMAZON_HANDHELD: 2,
+  UWP: 3,
+  XBOX: 4,
+  NX_HANDHELD: 5,
+  PS4: 6,
+  GEARVR: 7,
+  WIN32: 8,
+  MACOS: 9,
+  AMAZON_TV: 10,
+  NX_TV: 11,
+  PS5: 12,
+};
+
+class Locale extends Facet {
+  locale = "en_US";
+  translate(id) {
+    if (USE_TRANSLATIONS) {
+      return _ME_Translations[id];
+    } else {
+      debugMessage("LocaleFacet", colorWarn, "USE_TRANSLATIONS not set, skipping translate", {id});
+      return id;
+    }
+  };
+  translateWithParameters(id, params) {
+    let translation = this.translate(id);
+    for (let i = 1; i <= params.length; i++) {
+      translation = translation?.replaceAll("%" + i + "$s", params[i - 1])
+    };
+    return translation;
+  };
+  formatDate(date) {
+    return new Date(date).toLocaleDateString();
+  };
+};
+
+
+class DeviceInfo extends Facet {
+  #div;
+  constructor() {
+    super()
+    let div = document.createElement("div");
+    div.style.width = "1cm";
+    div.style.height = "1cm";
+    div.style.position = "absolute";
+    div.style.top = "10000px";
+    this.#div = div;
+  }
+
+  get pixelsPerMillimeter() {
+      return this.#div.getBoundingClientRect().width / 10;
+  }
+
+  get displayWidth() {
+    return window.innerWidth;
+  }
+
+  get displayHeight() {
+    return window.innerHeight;
+  }
+
+  inputMethods = [_ME_InputMethods.GAMEPAD_INPUT_METHOD, _ME_InputMethods.TOUCH_INPUT_METHOD, _ME_InputMethods.MOUSE_INPUT_METHOD];
+  isLowMemoryDevice = false;
+  guiScaleBase = 4;
+  platform = _ME_Platforms.WIN32;
+  guiScaleModifier = 0;
+}
+
+
+class SafeZone extends Facet {
+  safeAreaX = 1;
+  screenPositionX = 0;
+  safeAreaY = 1;
+  screenPositionY = 0;
+};
+
+
+class FeatureFlags extends Facet {
+  flags = [
+    "facet",
+    "core.deviceInformation",
+    "core.input",
+    "core.locale",
+    "core.router",
+    "core.safeZone",
+    "core.screenReader",
+    "core.splitScreen",
+    "vanilla.achievements",
+    "vanilla.enableSeedTemplates",
+    "vanilla.enableBehaviorPacksTab",
+    "vanilla.enableResourcePacksTab",
+    "vanilla.enableResourcePacksRealmsPlusFeatureFlag",
+  ];
+};
+
+
+class SplitScreen extends Facet {
+  numActivePlayers = 1;
+  splitScreenDirection = 0;
+  splitScreenPosition = 0;
+};
+
+
+const _ME_InputMethods = {
+  GAMEPAD_INPUT_METHOD: 0,
+  TOUCH_INPUT_METHOD: 1,
+  MOUSE_INPUT_METHOD: 2,
+  MOTION_CONTROLLER_INPUT_METHOD: 3,
+};
+
+class Input extends Facet {
+  currentInputType = _ME_InputMethods.MOUSE_INPUT_METHOD;
+  swapABButtons = false;
+  acceptInputFromAllControllers = false;
+  gameControllerId = 0;
+  swapXYButtons = false;
+};
+
+
+class ScreenReader extends Facet {
+  isChatTextToSpeechEnabled = false;
+  isIdle = false;
+  isUITextToSpeechEnabled = false;
+
+  read(text, interuptable, required, play_in_background) {
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+
+  clear() {
+    debugMessage("screenReaderFacet", colorDebug, "clear");
+  }
+};
+
+
 class RouterFacetHistory {
+  /** @argument router {RouterFacet} */
   constructor(router) {
     const hist = this;
     
@@ -206,19 +220,15 @@ class RouterFacetHistory {
         console.log(m.data);
         hist.location.pathname = m.data.pathname;
         if(m.data.content) {
-          _ME_OnBindings = {}
+          engine.bindings = {};
           document.write(m.data.content);
           document.close();
         } else {
-          const handler = _ME_OnBindings[`facet:updated:core.router`];
-          if(handler) {
-            handler(router);
-          }
+          router.update();
         }
       }
     };
     window.addEventListener("message", l);
-
     onGlobalListenerRemoval.addListener(() => {
       window.addEventListener("message", l);
     });
@@ -261,28 +271,30 @@ function gotoRoute(path) {
   window.parent.postMessage({RouterEvent: path});
 }
 
-class RouterFacet {
+class Router extends Facet {
   engineUITransitionTime = 800;
   constructor() {
+    super();
     this.history = dummyFacet(new RouterFacetHistory(this));
   }
 }
 
 
-class CustomScalingFacet {
+class CustomScaling extends Facet {
   scalingModeOverride = 0;
   fixedGuiScaleModifier = 0;
 };
 
 
-class AnimationFacet {
+class Animation extends Facet {
   screenAnimationEnabled = true;
 };
 
 
-class SoundFacet {
+class Sound extends Facet {
   sound_definitions = {};
   constructor() {
+    super();
     fetch("/hbui/sound_definitions.json")
       .then((response) => response.json())
       .then((sounddat) => {
@@ -319,17 +331,20 @@ class SoundFacet {
 };
 
 
-class SocialFacet {};
+class Social extends Facet {
+};
 
 
-class UserFacet {};
+class User extends Facet {
+};
 
 
-class performanceFacet {
+class performanceFacet extends Facet {
   frameTimeMs = 0;
   #last = performance.now();
 
   constructor() {
+    super();
     this.#frame();
   }
 
@@ -357,7 +372,7 @@ class performanceFacet {
 
 //#region vanilla
 
-class AchievementsFacet {
+class Achievements extends Facet {
   status = 1;
   data = {
     achievementsUnlocked: 1,
@@ -418,10 +433,10 @@ class AchievementsFacet {
   };
 }
 
-class AchievementsRewardFacet {}
+class AchievementsReward extends Facet {}
 
 
-class CreateNewWorldBetaFacet {
+class CreateNewWorldBeta extends Facet {
   isBetaSupported = true;
   openFeedbackPage() {
     debugMessage("CNWBetaFacet", colorInfo, "openFeedbackPage()");
@@ -431,7 +446,7 @@ class CreateNewWorldBetaFacet {
   };
 };
 
-class CreateNewWorldFacet {
+class CreateNewWorld extends Facet {
   isEditorWorld = false;
   isUsingTemplate = false;
   isLockedTemplate = false;
@@ -513,12 +528,12 @@ class CreateNewWorldFacet {
   };
 };
 
-class VanillaOptionsFacet {
+class VanillaOptions extends Facet {
   renderDistance = 5;
   defaultRenderDistance = 10;
 };
 
-class SeedTemplatesFacet {
+class SeedTemplates extends Facet {
   templates = [
     {
       seedValue: "0",
@@ -528,11 +543,11 @@ class SeedTemplatesFacet {
   ];
 };
 
-class SimulationDistanceOptionsFacet {
+class SimulationDistanceOptions extends Facet {
   simulationDistanceOptions = [4, 6, 8, 10];
 };
 
-class DebugSettingsFacet {
+class DebugSettings extends Facet {
   isBiomeOverrideActive = false;
   flatNether = false;
   dimension = 0;
@@ -575,7 +590,7 @@ class DebugSettingsFacet {
 };
 
 
-class RealmsStoriesFacet {
+class RealmsStories extends Facet {
   data = {
     stories: [
       {
@@ -621,7 +636,7 @@ class RealmsStoriesFacet {
   };
 };
 
-class ResourcePacksFacet {
+class ResourcePacks extends Facet {
   texturePacks = {
     activeGlobal: [],
     active: [],
@@ -674,7 +689,7 @@ class ResourcePacksFacet {
 
 
 
-class UserAccountFacet {
+class UserAccount extends Facet {
   isTrialAccount = false;
   isLoggedInWithMicrosoftAccount = true;
   hasPremiumNetworkAccess = true;
@@ -686,13 +701,13 @@ class UserAccountFacet {
   };
 };
 
-class TelemetryFacet {
+class Telemetry extends Facet {
   fireEventButtonPressed(event) {
     debugMessage("VanillaTelem", colorDebug, "EventButtonPressed", {event: event});
   };
 };
 
-class PlayerMessagingServiceFacet {
+class PlayerMessagingService extends Facet {
   data = {
     messages: [
       {
@@ -803,26 +818,26 @@ class PlayerMessagingServiceFacet {
   };
 };
 
-class PlayerReportFacet {
+class PlayerReport extends Facet {
   reportPlayer(whereReport, reason, message, xuid, uuid) {
     console.log("[EngineWrapper/PlayerReportFacet] reportPlayer()");
   }
 };
 
-class PlayerBannedFacet {
+class PlayerBanned extends Facet {
   openBannedInfoPage() {
     console.log("[EngineWrapper/PlayerBannedFacet] openBannedInfoPage()");
   };
 };
 
-class MarketplaceSuggestionsFacet {
+class MarketplaceSuggestions extends Facet {
   getMorePacks = {
     title: "test",
     pageId: 0,
   }
 };
 
-class BuildSettingsFacet {
+class BuildSettings extends Facet {
   isEduBuild = true;
   isDevBuild = true;
 };
@@ -887,7 +902,7 @@ const _ME_EditorThemes = {
 };
 
 
-class EditorFacet {
+class Editor extends Facet {
   editorTools = {
     selectedTool: 0,
   };
@@ -902,7 +917,7 @@ class EditorFacet {
   }
 };
 
-class EditorInputFacet {};
+class EditorInput extends Facet {};
 
 //#endregion vanilla
 
@@ -913,7 +928,7 @@ class EditorInputFacet {};
 const loggingHandler = {
   get(target, property) {
     const v = target[property];
-    if(v === undefined) {
+    if(v === undefined && property.__proto__.constructor.name != "Symbol") {
       debugMessage(`DUMMY ${target.__proto__.constructor.name}`, colorDebug, property);
     }
     return v;
@@ -925,32 +940,63 @@ function dummyFacet(target) {
 }
 
 
-class genericPreGameFacet {
+class genericPreGame extends Facet {
   isPublishBuild = false
+  isPersonaAppearanceRequestActive = false
   shouldPlaySplashVideo = false
   shouldPlayLogoVideo = false
+  usedStorageMb = 4200000
+  totalStorageMb = 4260000
+
+  mythsDLCMetaDataIds = []
+  lostLegendsDLCMetaDataIds = []
+  heroSkins = []
+  personas = []
 }
 
-class genericPreGameMethods {
-
+class genericPreGameMethods extends Facet {
+  signedOutModalData = {
+    title: "Signed Out",
+    body: "lorem ipsum!",
+    confirm: () => {}
+  }
+  updateCharacterSceneToSavedCharacter = () => {
+  }
 }
 
 
-class genericCommonFacet {
+class genericCommon extends Facet {
   localPlayerPlatform = 0
   uiStyle = 0
-}
-class genericCommonMethodsFacet {}
+  isNetworkAvailable = true
+  isConnectedXBL = true
+  isCrossPlayEnabled = true
+  isMultiplayerAllowed = true
+  isConnectedPlatform = true
+  isHost = true
+  isMatchmaking = false
+  fontScale = 1
 
-class badgerCommonInputFacet {
+  localPlayerPlatformName = "username"
+  localPlayerUUID = "uuid"
+  playerList = []
+}
+class genericCommonMethods extends Facet {
+  msaLinkModalData = dummyFacet({
+
+  })
+}
+
+class badgerCommonInput extends Facet {
   remappingButtonData = []
 }
 
-class settingsFacet {
+class settings extends Facet {
   settingCategories = []
+  showPrivacyChangedNoInternetModal = false
 }
 
-class settingsMethodsFacet {
+class settingsMethods extends Facet {
   setSettingCategory() {
     console.log("setSettingCategory")
   }
@@ -959,11 +1005,11 @@ class settingsMethodsFacet {
   }
 }
 
-class endCreditsFacet {
+class endCredits extends Facet {
   creditsText = ["me lol"]
 }
 
-class badgerCommonInputMethodsFacet {
+class badgerCommonInputMethods extends Facet {
   setUIIsGamepad(val) {}
   
   toPrimitive() {
@@ -971,13 +1017,13 @@ class badgerCommonInputMethodsFacet {
   }
 }
 
-class playerInfoFacet {
+class playerInfo extends Facet {
   currentHealth = 20
   totalHealth = 20
   isTakingDamage = false
 }
 
-class hudLowVolumeFacet {
+class hudLowVolume extends Facet {
   hudMessages = []
   logMessages = []
   cinematicData = []
@@ -986,7 +1032,7 @@ class hudLowVolumeFacet {
   skipCinematicWindowOpen = false
   cinematicSkipState = false
 }
-class HotbarFacet {
+class Hotbar extends Facet {
   hotbarTooltipErrorMessages = []
   hotbarItems = []
   currentHotbarSlot = 0
@@ -994,46 +1040,47 @@ class HotbarFacet {
   hotbarQuickBuildItem = null
   showToolbarDisplay = true
 }
-class badgerInputFacet {
+class badgerInput extends Facet {
   buttonMappingData = []
   keyStates = []
   actionKeysPressed = []
   currentInputMethod = 0
 }
-class subtitlesFacet {
+class subtitles extends Facet {
   VOSubtitles = []
   devSubtitles = []
 }
-class highVolumeFacet {
+class highVolume extends Facet {
   objectiveHealthBars = []
   onscreenWaypointMarkers = []
   bottomCompassMarkers = []
   topCompassMarkers = []
   displayedGlobalTimer = true
 }
-class genericInGameFacet {
+class genericInGame extends Facet {
   emphasizedHUDItems = []
 }
-class genericInGameMethodsFacet {
+class genericInGameMethods extends Facet {
   onScreenOpened(screen) {
     debugMessage("genericInGameMethods", colorInfo, "onScreenOpened", screen);
   }
 }
 
-class hudFacet {
+class hud extends Facet {
   canAffordBuildable = true
   isInBattleView = false
   isInBuildPreview = false
   showSongbookIndicator = false
   interactableBuilding = false
 }
-class ticketTimersFacet {}
-class resourcesFacet {
+
+class ticketTimers extends Facet {}
+class resources extends Facet {
   economyTickets = []
   hudTeamResources = []
   hudContextualResources = []
 }
-class radialMenuFacet {
+class radialMenu extends Facet {
   isMenuShowing = false
   currentLuredUnitCount = 0
   currentLuredUnitType = 0
@@ -1041,143 +1088,225 @@ class radialMenuFacet {
   isHeroLuring = false
   isHeroDirecting = false
 }
-class debugDrawFacet {
+class debugDraw extends Facet {
 
 }
 
-class songbookFacet {}
-class uiEventFacet {}
+class songbook extends Facet {}
+class uiEvent extends Facet {}
 
-class badgerStartMenuFacet {}
-class badgerStartMenuMethodsFacet {
+class badgerStartMenu extends Facet {}
+class badgerStartMenuMethods extends Facet {
   openSettings() {
     gotoRoute("/badger/settings");
   }
+  openMarketplace() {
+    gotoRoute("/badger/marketplace")
+  }
+  openLegendsHub() {
+    gotoRoute("/badger/legendsHub")
+  }
+  startGamePVPHub() {
+    gotoRoute("/badger/pvpLobby")
+  }
 }
 
-class lobbyFacet {}
-class lobbyMethodsFacet {}
+class lobby extends Facet {
+  lostLegendsHubHostGameModes = []
+  campaignHubHostGameModes = []
+  campaignHubDiscoveryGameModes = []
+  multiplayerHubDiscoveryGameModes = []
+  mythsHubHostGameModes = []
+  multiplayerHubHostGameModes = []
+  lobbyGameModeData = {
+    isPracticeMode: false,
+    allowMatchmaking: true,
+    maxPlayerCount: 10,
+    modeName: "ModeName"
+  }
+  lobbyTitle = "lobbyTitle"
+  lobbyPrivacy = false
+  minPlayerCount = 1
+  isMinPlayerCheckDisabled = true
+  lobbyStartMatchTimer = 1
+  teamSwitching = true
+  failedToMatchmake = false
+  lobbyChatMessages = []
+}
+class lobbyMethods extends Facet {
+  startMatchmaking = () => {
+  }
+}
 
-class screenUtilFacet {}
-class screenUtilMethodsFacet {}
+class screenUtil extends Facet {}
+class screenUtilMethods extends Facet {}
 
-class marketplaceFacet {}
-class marketplaceMethodsFacet {}
+class marketplace extends Facet {
+  isInventoryView = false
+  isMarketplaceRoot = false
+  isPremiumPurchaseError = false
+  isBalancePendingRefresh = false
+  marketplaceModalDisplayed = false
+  marketplaceModalCancellable = true
+  newLostLegendRewardModalDisplayed = false
 
-class badgerInviteFacet {}
-class badgerInviteMethodsFacet {}
+  purchaseResponse = {}
+
+  balance = 100
+  localPlayerPlatformName = "username!"
+}
+class marketplaceMethods extends Facet {
+  onOfferPurchaseModalDisplayStateChanged = () => {
+
+  }
+  onMinecoinPurchaseModalDisplayStateChanged = () => {
+
+  }
+
+  goToStoreRoot = () => {
+    gotoRoute("/badger/marketplace");
+  }
+
+  marketplaceModalData = {
+    title: "Modal",
+    body: "body"
+  }
+
+  newLostLegendRewardModalData = {
+    title: "New Lost Legend",
+    body: "lorem ipsum or whatever",
+    image: "https://picsum.photos/200/300"
+  }
+}
+
+class badgerInvite extends Facet {
+  reportPlayerResult = {}
+}
+class badgerInviteMethods extends Facet {}
+
+class networkWorlds extends Facet {
+  friendsWorlds = []
+  lanWorlds = []
+  crossPlatformFriendsWorlds = []
+}
+
+class networkWorldsMethods extends Facet {
+  setUpdateWorldListState = () => {
+
+  }
+}
+
+class localWorlds extends Facet {
+  isDeleting = false
+  worlds = []
+}
+class localWorldsMethods extends Facet {}
 
 //#endregion badger
 
 const _ME_Facets = {
   // == Core Facets == //
-  "core.locale": LocaleFacet,
-  "core.deviceInformation": DeviceInfoFacet,
-  "core.safeZone": SafeZoneFacet,
-  "core.featureFlags": FeatureFlagsFacet,
-  "core.splitScreen": SplitScreenFacet,
-  "core.input": InputFacet,
-  "core.screenReader": ScreenReaderFacet,
-  "core.router": RouterFacet,
-  "core.customScaling": CustomScalingFacet,
-  "core.animation": AnimationFacet,
-  "core.sound": SoundFacet,
-  "core.social": SocialFacet,
-  "core.user": UserFacet,
+  "core.locale": Locale,
+  "core.deviceInformation": DeviceInfo,
+  "core.safeZone": SafeZone,
+  "core.featureFlags": FeatureFlags,
+  "core.splitScreen": SplitScreen,
+  "core.input": Input,
+  "core.screenReader": ScreenReader,
+  "core.router": Router,
+  "core.customScaling": CustomScaling,
+  "core.animation": Animation,
+  "core.sound": Sound,
+  "core.social": Social,
+  "core.user": User,
   "core.performanceFacet": performanceFacet,
   // == Vanilla Facets == //
-  "vanilla.achievements": AchievementsFacet,
-  "vanilla.achievementsReward": AchievementsRewardFacet,
-  "vanilla.createNewWorld": CreateNewWorldFacet,
-  "vanilla.telemetry": TelemetryFacet,
-  "vanilla.createNewWorldBeta": CreateNewWorldBetaFacet,
-  "vanilla.userAccount": UserAccountFacet,
-  "vanilla.buildSettings": BuildSettingsFacet,
-  "vanilla.debugSettings": DebugSettingsFacet,
-  "vanilla.resourcePacks": ResourcePacksFacet,
-  "vanilla.options": VanillaOptionsFacet,
-  "vanilla.simulationDistanceOptions": SimulationDistanceOptionsFacet,
-  "vanilla.seedTemplates": SeedTemplatesFacet,
-  "vanilla.realmsStories": RealmsStoriesFacet,
-  "vanilla.playermessagingservice": PlayerMessagingServiceFacet,
-  "vanilla.playerReport": PlayerReportFacet,
-  "vanilla.marketplaceSuggestions": MarketplaceSuggestionsFacet,
-  "vanilla.playerBanned": PlayerBannedFacet,
-  "vanilla.editor": EditorFacet,
-  "vanilla.editorInput": EditorInputFacet,
+  "vanilla.achievements": Achievements,
+  "vanilla.achievementsReward": AchievementsReward,
+  "vanilla.createNewWorld": CreateNewWorld,
+  "vanilla.telemetry": Telemetry,
+  "vanilla.createNewWorldBeta": CreateNewWorldBeta,
+  "vanilla.userAccount": UserAccount,
+  "vanilla.buildSettings": BuildSettings,
+  "vanilla.debugSettings": DebugSettings,
+  "vanilla.resourcePacks": ResourcePacks,
+  "vanilla.options": VanillaOptions,
+  "vanilla.simulationDistanceOptions": SimulationDistanceOptions,
+  "vanilla.seedTemplates": SeedTemplates,
+  "vanilla.realmsStories": RealmsStories,
+  "vanilla.playermessagingservice": PlayerMessagingService,
+  "vanilla.playerReport": PlayerReport,
+  "vanilla.marketplaceSuggestions": MarketplaceSuggestions,
+  "vanilla.playerBanned": PlayerBanned,
+  "vanilla.editor": Editor,
+  "vanilla.editorInput": EditorInput,
   // == Badger Facets == //
-  "badger.genericPreGame": genericPreGameFacet,
+  "badger.genericPreGame": genericPreGame,
   "badger.genericPreGameMethods": genericPreGameMethods,
 
-  "badger.genericInGame": genericInGameFacet,
-  "badger.genericInGameMethods": genericInGameMethodsFacet,
+  "badger.genericInGame": genericInGame,
+  "badger.genericInGameMethods": genericInGameMethods,
 
-  "badger.badgerStartMenu": badgerStartMenuFacet,
-  "badger.badgerStartMenuMethods": badgerStartMenuMethodsFacet,
+  "badger.badgerStartMenu": badgerStartMenu,
+  "badger.badgerStartMenuMethods": badgerStartMenuMethods,
 
-  "badger.lobby": lobbyFacet,
-  "badger.lobbyMethods": lobbyMethodsFacet,
+  "badger.lobby": lobby,
+  "badger.lobbyMethods": lobbyMethods,
 
-  "badger.settings": settingsFacet,
-  "badger.settingsMethods": settingsMethodsFacet,
+  "badger.settings": settings,
+  "badger.settingsMethods": settingsMethods,
 
-  "badger.screenUtil": screenUtilFacet,
-  "badger.screenUtilMethods": screenUtilMethodsFacet,
+  "badger.screenUtil": screenUtil,
+  "badger.screenUtilMethods": screenUtilMethods,
 
-  "badger.badgerCommonInput": badgerCommonInputFacet,
-  "badger.badgerCommonInputMethods": badgerCommonInputMethodsFacet,
+  "badger.badgerCommonInput": badgerCommonInput,
+  "badger.badgerCommonInputMethods": badgerCommonInputMethods,
 
-  "badger.marketplace": marketplaceFacet,
-  "badger.marketplaceMethods": marketplaceMethodsFacet,
+  "badger.marketplace": marketplace,
+  "badger.marketplaceMethods": marketplaceMethods,
 
-  "badger.badgerInvite": badgerInviteFacet,
-  "badger.badgerInviteMethods": badgerInviteMethodsFacet,
+  "badger.badgerInvite": badgerInvite,
+  "badger.badgerInviteMethods": badgerInviteMethods,
 
-  "badger.genericCommon": genericCommonFacet,
-  "badger.genericCommonMethods": genericCommonMethodsFacet,
+  "badger.genericCommon": genericCommon,
+  "badger.genericCommonMethods": genericCommonMethods,
 
-  "badger.playerInfo": playerInfoFacet,
-  "badger.endCredits": endCreditsFacet,
+  "badger.playerInfo": playerInfo,
+  "badger.endCredits": endCredits,
 
-  "badger.hud": hudFacet,
-  "badger.hudLowVolume": hudLowVolumeFacet,
-  "badger.hotbar": HotbarFacet,
-  "badger.badgerInput": badgerInputFacet,
-  "badger.subtitles": subtitlesFacet,
-  "badger.highVolume": highVolumeFacet,
-  "badger.radialMenu": radialMenuFacet,
-  "badger.resources": resourcesFacet,
-  "badger.ticketTimers": ticketTimersFacet,
-  "badger.debugDraw": debugDrawFacet,
-  "badger.songbook": songbookFacet,
-  "badger.uiEvent": uiEventFacet,
+  "badger.hud": hud,
+  "badger.hudLowVolume": hudLowVolume,
+  "badger.hotbar": Hotbar,
+  "badger.badgerInput": badgerInput,
+  "badger.subtitles": subtitles,
+  "badger.highVolume": highVolume,
+  "badger.radialMenu": radialMenu,
+  "badger.resources": resources,
+  "badger.ticketTimers": ticketTimers,
+  "badger.debugDraw": debugDraw,
+  "badger.songbook": songbook,
+  "badger.uiEvent": uiEvent,
+  "badger.networkWorlds": networkWorlds,
+  "badger.networkWorldsMethods": networkWorldsMethods,
+
+  "badger.localWorlds": localWorlds,
+  "badger.localWorldsMethods": localWorldsMethods,
 };
-
-for(const name of Object.keys(_ME_Facets)) {
-    _ME_Facets[name] = dummyFacet(_ME_Facets[name]);
-}
-window._ME_Facets = _ME_Facets;
 
 
 class TriggerEvent {
-  constructor(engine) {
-    this.engine = engine
-  }
-
   apply(unk, data) {
     const eventType = data[0];
     switch (eventType) {
       case "facet:request":
         const facetName = data[1][0];
-        const facet = this.engine.facets[facetName];
+        const facet = engine.facets[facetName];
         if (facet) {
           debugMessage("TriggerEvent", colorInfo, "Sending Facet", facetName);
-          const handler = _ME_OnBindings[`facet:updated:${facetName}`];
-          if(handler) handler(facet);
+          facet.update();
         } else {
           debugMessage("TriggerEvent", colorError, "MISSING FACET", facetName);
-          const handler = _ME_OnBindings[`facet:error:${facetName}`];
-          if(handler) handler(facet);
+          facet.error();
         }
         break;
     
@@ -1194,15 +1323,19 @@ class TriggerEvent {
 }
 
 class Engine {
+  /** @type {{[k: string]: Facet}} */
   facets = {}
+  bindings = {}
   createFacets() {
     for(const name of Object.keys(_ME_Facets)) {
-      this.facets[name] = dummyFacet(new _ME_Facets[name]);
+      const facet = dummyFacet(new _ME_Facets[name]);
+      this.facets[name] = facet;
+      facet.facetName = name;
     }
   }
 
   constructor() {
-    this.TriggerEvent = new TriggerEvent(this);    
+    this.TriggerEvent = new TriggerEvent();    
     this.isAttached = false;
     this.createFacets();
   }
@@ -1210,32 +1343,37 @@ class Engine {
   on(event, callback) {
     debugMessage("engine.on", colorInfo, {event: event});
   }
+
   off(event, callback) {
     debugMessage("engine.off", colorInfo, {event: event});
   }
+
   AddOrRemoveOnHandler(id, func, unk) {
     debugMessage("AddOrRemoveOnHandler", colorInfo, {
       ID: id,
       Function: func,
     });
-    _ME_OnBindings[id] = func;
+    this.bindings[id] = func;
   }
+
   RemoveOnHandler(id, func, unk) {
     debugMessage("RemoveOnHandler", colorInfo, {
       ID: id,
       Function: func,
     });
   }
+
   AddOrRemoveOffHandler(id) {
     debugMessage("AddOrRemoveOffHandler", colorInfo, {
       ID: id,
     });
     return true;
   }
+
   BindingsReady() {
     debugMessage("BindingsReady", colorDebug);
   }
 }
 
-const engine = dummyFacet(new Engine());
+const engine = new Engine();
 window.engine = engine;
