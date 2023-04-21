@@ -998,8 +998,15 @@ class badgerCommonInput extends Facet {
 }
 
 class settings extends Facet {
-  settingCategories = []
-  settings = []
+  settingCategories = [
+    "debug"
+  ]
+  settings = [
+    dummyFacet({
+      category: "debug",
+      subcategories: []
+    })
+  ]
   showPrivacyChangedNoInternetModal = false
 }
 
