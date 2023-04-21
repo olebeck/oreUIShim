@@ -1144,10 +1144,10 @@ class lobby extends Facet {
   lobbyGameModeData = {
     isPracticeMode: false,
     allowMatchmaking: true,
-    maxPlayerCount: 10,
+    maxPlayerCount: 8,
     modeName: "ModeName"
   }
-  lobbyTitle = "lobbyTitle"
+  lobbyTitle = "fortnite battle royale"
   lobbyPrivacy = false
   minPlayerCount = 1
   lobbyMaxSlots = 10
