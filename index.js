@@ -129,6 +129,7 @@ async function loadLocalization() {
   });
   const lines = locdat.split("\n");
   lines.forEach(function (item, ind) {
+    if(item.startsWith("#")) return;
     keyval = item.split("=");
     _ME_Translations[keyval[0]] = keyval[1]?.replace("\r", ""); //oh windows you special snowflake
   });
