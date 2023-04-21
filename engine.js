@@ -102,10 +102,7 @@ class Locale extends Facet {
   };
   translateWithParameters(id, params) {
     let translation = this.translate(id);
-    for (let i = 1; i <= params.length; i++) {
-      translation = translation?.replaceAll("%" + i + "$s", params[i - 1])
-    };
-    return translation;
+    return sprintf(translation, ...params);
   };
   formatDate(date) {
     return new Date(date).toLocaleDateString();
@@ -935,7 +932,8 @@ const loggingHandler = {
   },
 };
 
-function dummyFacet(target) {
+function dummyFacet(target, name = null) {
+  if(name != null) target.__proto__.constructor.name = name;
   return new Proxy(target, loggingHandler)
 }
 
@@ -945,6 +943,7 @@ class genericPreGame extends Facet {
   isPersonaAppearanceRequestActive = false
   shouldPlaySplashVideo = false
   shouldPlayLogoVideo = false
+  showTutorialCompleteModal = false
   usedStorageMb = 4200000
   totalStorageMb = 4260000
 
@@ -985,12 +984,14 @@ class genericCommon extends Facet {
 
   localPlayerPlatformName = "username"
   localPlayerUUID = "uuid"
+  localPlayerXBLProfilePicture = "https://cdn.discordapp.com/avatars/833758710861922387/c035dd7ad20761330a03d0360ad0d967.webp?size=128"
+  gamerTag = "IP_Justice"
   playerList = []
 }
 class genericCommonMethods extends Facet {
   msaLinkModalData = dummyFacet({
 
-  })
+  }, "msaLinkModalData")
 }
 
 class badgerCommonInput extends Facet {
@@ -1005,7 +1006,7 @@ class settings extends Facet {
     dummyFacet({
       category: "debug",
       subcategories: []
-    })
+    }, "settings page")
   ]
   showPrivacyChangedNoInternetModal = false
 }
@@ -1134,7 +1135,12 @@ class lobby extends Facet {
   campaignHubDiscoveryGameModes = []
   multiplayerHubDiscoveryGameModes = []
   mythsHubHostGameModes = []
-  multiplayerHubHostGameModes = []
+  multiplayerHubHostGameModes = [
+    dummyFacet({
+      modeName: "conquest_practice",
+      isPracticeMode: true
+    }, "game mode")
+  ]
   lobbyGameModeData = {
     isPracticeMode: false,
     allowMatchmaking: true,
@@ -1211,9 +1217,29 @@ class marketplaceMethods extends Facet {
 }
 
 class badgerInvite extends Facet {
+  inGameLobby = false
   reportPlayerResult = {}
+  legendFilterLocString = "hbui.friendsSidebar.filterAll"
+  friends = [
+    dummyFacet({
+      playingBadger: true,
+      invitable: true,
+      joinable: true,
+      online: true,
+      status: 1,
+      platformType: 1,
+      platformId: 1,
+      picture: "https://pbs.twimg.com/profile_images/811541117644800000/35DkAsO8_400x400.jpg",
+      name: "jeb_",
+      xuid: 20042324324
+    }, "friend")
+  ]
+  findPlayerResult = dummyFacet({})
 }
-class badgerInviteMethods extends Facet {}
+class badgerInviteMethods extends Facet {
+  refreshFriendsList = () => {}
+  resetFindPlayerResult = () => {}
+}
 
 class networkWorlds extends Facet {
   friendsWorlds = []

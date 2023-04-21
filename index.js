@@ -16,17 +16,21 @@ class Router {
   /** @type {HTMLIFrameElement} */
   iframe;
 
+  css = `
+    <style>
+      div {
+        box-sizing: border-box;
+      }
+    </style>
+  `
+
   routes = [];
 
   constructor(iframe) {
     this.iframe = iframe;
     this.iframe.contentDocument.open();
     this.iframe.contentDocument.write(`
-      <style>
-      div {
-        height: min-content;
-      }
-      </style>
+      <script src="/printf.js"></script>
       <script src="/engine.js"></script>
     `);
     this.iframe.contentWindow._ME_Translations = _ME_Translations;
@@ -93,7 +97,7 @@ class Router {
     }
     this.iframe.contentWindow.postMessage({
       pathname: path,
-      content: text,
+      content: text ? this.css+text : text,
     });
   }
 }
