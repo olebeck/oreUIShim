@@ -20,6 +20,7 @@ class Router {
 
   constructor(iframe) {
     this.iframe = iframe;
+    this.iframe.contentDocument.open();
     this.iframe.contentDocument.write(`
       <style>
       div {
@@ -39,7 +40,9 @@ class Router {
       const found = this.lookupRoute(path);
       if(!found) {
         debugMessage("Router", colorError, path, "not found");
+        this.iframe.contentDocument.open();
         this.iframe.contentDocument.write("<body><h1>Not found</h1></body>");
+        this.iframe.contentDocument.close();
         this.iframe.setAttribute("filename", "404");
       }
     });
