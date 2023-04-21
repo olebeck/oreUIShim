@@ -40,13 +40,14 @@ class Router {
       if(!found) {
         debugMessage("Router", colorError, path, "not found");
         this.iframe.contentDocument.write("<body><h1>Not found</h1></body>");
+        this.iframe.setAttribute("filename", "404");
       }
     });
 
     window.addEventListener("message", (ev) => {
         console.log(ev.data);
         if(ev.data.RouterEvent) {
-            window.location.hash = ev.data.RouterEvent;
+            window.top.location.hash = ev.data.RouterEvent;
         }
     });
 
