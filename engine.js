@@ -94,7 +94,9 @@ class Locale extends Facet {
   locale = "en_US";
   translate(id) {
     if (USE_TRANSLATIONS) {
-      return _ME_Translations[id];
+      const translation = _ME_Translations[id];
+      if(translation) return translation;
+      return id;
     } else {
       debugMessage("LocaleFacet", colorWarn, "USE_TRANSLATIONS not set, skipping translate", {id});
       return id;
@@ -102,6 +104,7 @@ class Locale extends Facet {
   };
   translateWithParameters(id, params) {
     let translation = this.translate(id);
+    if(!translation) return "Failed to translate: "+id;
     return sprintf(translation, ...params);
   };
   formatDate(date) {
@@ -959,6 +962,14 @@ class genericPreGameMethods extends Facet {
     body: "lorem ipsum!",
     confirm: () => {}
   }
+  multiplayerBlockedErrorModalData = dummyFacet({
+    title: "title",
+    body: "body",
+    confirm: () => {
+      gotoRoute("/badger/mainMenu")
+    },
+    cancel: () => {}
+  })
   updateCharacterSceneToSavedCharacter = () => {
   }
   setCharacterScene = () => {
@@ -982,8 +993,9 @@ class genericCommon extends Facet {
   isMatchmaking = false
   fontScale = 1
 
-  localPlayerPlatformName = "username"
+  localPlayerPlatformName = "IP_Justice"
   localPlayerUUID = "uuid"
+  localPlayerPlatformProfilePicture = "https://cdn.discordapp.com/avatars/833758710861922387/c035dd7ad20761330a03d0360ad0d967.webp?size=128"
   localPlayerXBLProfilePicture = "https://cdn.discordapp.com/avatars/833758710861922387/c035dd7ad20761330a03d0360ad0d967.webp?size=128"
   gamerTag = "IP_Justice"
   playerList = []
@@ -1026,16 +1038,16 @@ class endCredits extends Facet {
 
 class badgerCommonInputMethods extends Facet {
   setUIIsGamepad(val) {}
-  
-  toPrimitive() {
-    return []
-  }
 }
 
 class playerInfo extends Facet {
   currentHealth = 20
   totalHealth = 20
   isTakingDamage = false
+
+  playerRespawnTimer = 3
+  playerRespawnTimerMax = 5
+  playerRespawnPostDelayTimerMax = 5
 }
 
 class hudLowVolume extends Facet {
@@ -1054,6 +1066,7 @@ class Hotbar extends Facet {
   currentToolbarId = 0
   hotbarQuickBuildItem = null
   showToolbarDisplay = true
+  fadeOutTooltipTimer = 3
 }
 class badgerInput extends Facet {
   buttonMappingData = []
@@ -1071,9 +1084,11 @@ class highVolume extends Facet {
   bottomCompassMarkers = []
   topCompassMarkers = []
   displayedGlobalTimer = true
+  cameraDirection = 0
 }
 class genericInGame extends Facet {
   emphasizedHUDItems = []
+  isPlayingFMV = false
 }
 class genericInGameMethods extends Facet {
   onScreenOpened(screen) {
@@ -1086,7 +1101,9 @@ class hud extends Facet {
   isInBattleView = false
   isInBuildPreview = false
   showSongbookIndicator = false
-  interactableBuilding = false
+  interactableBuilding = ""
+  hudElementFading = false
+  hudElementVisibility = false
 }
 
 class ticketTimers extends Facet {}
@@ -1094,6 +1111,8 @@ class resources extends Facet {
   economyTickets = []
   hudTeamResources = []
   hudContextualResources = []
+  economyTicketDeltas = []
+  spawnCostDeltas = []
 }
 class radialMenu extends Facet {
   isMenuShowing = false
@@ -1107,7 +1126,9 @@ class debugDraw extends Facet {
 
 }
 
-class songbook extends Facet {}
+class songbook extends Facet {
+  songbookCategories = []
+}
 class uiEvent extends Facet {}
 
 class badgerStartMenu extends Facet {}
@@ -1163,6 +1184,9 @@ class lobbyMethods extends Facet {
   exitLobby = () => {
     gotoRoute("/badger/mainMenu");
   }
+  findGame = () => {
+    console.log("findGame");
+  }
 }
 
 class screenUtil extends Facet {}
@@ -1180,8 +1204,11 @@ class marketplace extends Facet {
   marketplaceModalDisplayed = false
   marketplaceModalCancellable = true
   newLostLegendRewardModalDisplayed = false
+  isMinecoinOffersLoaded = true
 
-  purchaseResponse = {}
+  purchaseResponse = dummyFacet({})
+  pageView = dummyFacet({})
+  purchasableMinecoinPacks = []
 
   balance = 100
   localPlayerPlatformName = "username!"
@@ -1204,21 +1231,21 @@ class marketplaceMethods extends Facet {
     gotoRoute("/badger/marketplace");
   }
 
-  marketplaceModalData = {
+  marketplaceModalData = dummyFacet({
     title: "Modal",
     body: "body"
-  }
+  }, "marketplaceModalData")
 
-  newLostLegendRewardModalData = {
+  newLostLegendRewardModalData = dummyFacet({
     title: "New Lost Legend",
     body: "lorem ipsum or whatever",
     image: "https://picsum.photos/200/300"
-  }
+  }, "newLostLegendRewardModalData")
 }
 
 class badgerInvite extends Facet {
   inGameLobby = false
-  reportPlayerResult = {}
+  reportPlayerResult = dummyFacet({}, "reportPlayerResult")
   legendFilterLocString = "hbui.friendsSidebar.filterAll"
   friends = [
     dummyFacet({
@@ -1234,7 +1261,7 @@ class badgerInvite extends Facet {
       xuid: 20042324324
     }, "friend")
   ]
-  findPlayerResult = dummyFacet({})
+  findPlayerResult = dummyFacet({}, "findPlayerResult")
 }
 class badgerInviteMethods extends Facet {
   refreshFriendsList = () => {}
@@ -1248,9 +1275,7 @@ class networkWorlds extends Facet {
 }
 
 class networkWorldsMethods extends Facet {
-  setUpdateWorldListState = () => {
-
-  }
+  setUpdateWorldListState = () => {}
 }
 
 class localWorlds extends Facet {
@@ -1419,10 +1444,12 @@ class Engine {
   }
 
   AddOrRemoveOnHandler(id, func, unk) {
+    /*
     debugMessage("AddOrRemoveOnHandler", colorInfo, {
       ID: id,
       Function: func,
     });
+    */
     this.bindings[id] = func;
   }
 

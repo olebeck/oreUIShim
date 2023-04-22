@@ -21,6 +21,9 @@ class Router {
       div {
         box-sizing: border-box;
       }
+      * {
+        user-select: none;
+      }
     </style>
   `
 
