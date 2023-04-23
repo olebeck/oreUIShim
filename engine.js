@@ -1007,7 +1007,13 @@ class genericCommonMethods extends Facet {
 }
 
 class badgerCommonInput extends Facet {
-  remappingButtonData = []
+  remappingButtonData = [
+    dummyFacet({})
+  ]
+}
+
+class badgerCommonInputMethods extends Facet {
+  setUIIsGamepad(val) {}
 }
 
 class settings extends Facet {
@@ -1034,10 +1040,6 @@ class settingsMethods extends Facet {
 
 class endCredits extends Facet {
   creditsText = ["me lol"]
-}
-
-class badgerCommonInputMethods extends Facet {
-  setUIIsGamepad(val) {}
 }
 
 class playerInfo extends Facet {
@@ -1171,7 +1173,7 @@ class lobby extends Facet {
   lobbyTitle = "fortnite battle royale"
   lobbyPrivacy = false
   minPlayerCount = 1
-  lobbyMaxSlots = 10
+  lobbyMaxSlots = 4
   isMinPlayerCheckDisabled = true
   lobbyStartMatchTimer = 1
   teamSwitching = true
@@ -1287,6 +1289,7 @@ class localWorldsMethods extends Facet {}
 class loadingScreen extends Facet {
   loadIsCancellable = true
   isLoading = false
+  loadingMessage = "creepers go explody sometimes ig"
 }
 class loadingScreenMethods extends Facet {}
 
@@ -1405,6 +1408,9 @@ class TriggerEvent {
         const message = data[1];
         debugMessage("TriggerEvent", colorError, "oreUI guest has reported exception", message);
         break;
+      
+      case "facet:discard":
+        break;
 
       default:
         debugMessage("TriggerEvent", colorWarn, `OreUI triggered ${eventType} but we don't handle it!`)
@@ -1458,6 +1464,7 @@ class Engine {
       ID: id,
       Function: func,
     });
+    delete this.bindings[id];
   }
 
   AddOrRemoveOffHandler(id) {

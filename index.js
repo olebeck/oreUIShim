@@ -61,7 +61,9 @@ class Router {
         }
     });
 
-    fetch("./hbui/routes.json").then(resp => resp.json()).then(routes_json => {
+    const dir = new URL(location.href).searchParams.get("dir") || "hbui";
+
+    fetch(`./${dir}/routes.json`).then(resp => resp.json()).then(routes_json => {
       this.routes = routes_json.routes;
       routesLoaded_resolve();
     });
